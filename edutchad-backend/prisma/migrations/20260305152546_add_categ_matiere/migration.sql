@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Subject" ADD COLUMN     "category" TEXT NOT NULL DEFAULT 'LITTERAIRE',
+ADD COLUMN     "coefficient" INTEGER NOT NULL DEFAULT 1;

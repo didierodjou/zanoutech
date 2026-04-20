@@ -1,0 +1,287 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+// --- ENUMS ---
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+  STAFF
+}
+
+enum BulletinStatus {
+  PENDING
+  VERIFIED
+  CONFIRMED
+}
+
+enum Period {
+  TRIMESTRE_1
+  TRIMESTRE_2
+  TRIMESTRE_3
+}
+
+// --- MODÈLES ---
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime  @default(now())
+  isActive     Boolean   @default(true)
+
+  studentProfile Student?
+  teacherProfile Teacher?
+  staffProfile   Staff?
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+}
+
+model Student {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName      String
+  lastName       String
+  sex            String?
+  dateOfBirth    DateTime
+  registrationNo String   @unique
+  photo          String?
+  
+  parentName     String
+  parentPhone    String
+  parentEmail    String?
+
+  classId        String?
+  class          Class?   @relation(fields: [classId], references: [id])
+
+  grades         Grade[]
+  absences       Absence[]
+  bulletins      Bulletin[]
+  controls       Control[]
+  punishments    Punishment[]
+}
+
+
+model Punishment {
+  id          String   @id @default(cuid())
+  hours       Float                        // Nombre d'heures de colle
+  reason      String?                      // Motif de la punition
+  date        DateTime @default(now())
+  trimester   Int                          // 1, 2 ou 3
+  givenBy     String   @default("Système") // Qui a donné la punition (Professeur, Directeur, etc.)
+
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+
+model Teacher {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName      String
+  lastName       String
+  phone          String?
+  specialty      String?
+  photo          String?  // URL de la photo de profil
+  
+  subjects       Subject[] @relation("TeacherSubjects")
+  
+  mainClassId    String?  @unique
+  mainClass      Class?   @relation("MainTeacher", fields: [mainClassId], references: [id])
+  
+  courses        Course[]
+  salaries       Salary[]
+  meetings       Meeting[]
+}
+
+model Subject {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  color          String?
+  category       String   @default("LITTERAIRE") // LITTERAIRE ou SCIENTIFIQUE
+  coefficient    Int      @default(1) // Coefficient par défaut de la matière
+  
+  teachers       Teacher[] @relation("TeacherSubjects")
+  courses        Course[]
+  grades         Grade[]
+  controls       Control[]
+}
+
+// prisma/schema.prisma - Ajouter le champ phone dans Staff
+
+model Staff {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName      String
+  lastName       String
+  jobTitle       String
+  department     String
+  hiringDate     DateTime
+  phone          String?  // AJOUT du champ téléphone (optionnel)
+  
+  salaries       Salary[]
+}
+
+model Class {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  level          String
+  
+  // Côté sans fields/references (c'est l'autre côté qui les définit)
+  mainTeacher    Teacher? @relation("MainTeacher")
+  
+  students       Student[]
+  courses        Course[]
+  schedule       ScheduleSlot[]
+}
+
+model Course {
+  id             String   @id @default(cuid())
+  
+  subjectId      String
+  subject        Subject  @relation(fields: [subjectId], references: [id])
+  
+  teacherId      String
+  teacher        Teacher  @relation(fields: [teacherId], references: [id])
+  
+  classId        String
+  class          Class    @relation(fields: [classId], references: [id])
+  
+  coefficient    Int      @default(1)
+  
+  scheduleSlots  ScheduleSlot[]
+}
+
+model Grade {
+  id             String   @id @default(cuid())
+  value          Float
+  coefficient    Int      @default(1)
+  period         Period
+  trimester      Int
+
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  subjectId      String
+  subject        Subject  @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, subjectId, trimester])
+}
+
+model Control {
+  id             String   @id @default(cuid())
+  type           String   // DEVOIR, INTERROGATION
+  value          Float
+  date           DateTime @default(now())
+  trimester      Int
+
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  subjectId      String
+  subject        Subject  @relation(fields: [subjectId], references: [id])
+}
+
+model Absence {
+  id             String   @id @default(cuid())
+  date           DateTime
+  type           String
+  isJustified    Boolean  @default(false)
+  reason         String?
+
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// prisma/schema.prisma
+model ScheduleSlot {
+  id             String   @id @default(cuid())
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  room           String?
+
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  classId        String
+  class          Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+}
+
+model Bulletin {
+  id             String         @id @default(cuid())
+  period         Period
+  status         BulletinStatus @default(PENDING)
+  generalAverage Float?
+  appreciation   String?
+  conduiteNote   Float?          // <-- AJOUT : note de conduite (saisie manuelle)
+  generatedAt    DateTime       @default(now())
+
+  studentId      String
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, period])
+}
+
+model Salary {
+  id             String   @id @default(cuid())
+  month          DateTime
+  baseAmount     Float
+  bonuses        Float    @default(0)
+  deductions     Float    @default(0)
+  netAmount      Float
+  isPaid         Boolean  @default(false)
+  paymentDate    DateTime?
+
+  teacherId      String?
+  teacher        Teacher? @relation(fields: [teacherId], references: [id])
+  
+  staffId        String?
+  staff          Staff?   @relation(fields: [staffId], references: [id])
+}
+
+model Meeting {
+  id             String   @id @default(cuid())
+  title          String
+  type           String
+  date           DateTime
+  duration       Int
+  location       String
+  agenda         String?
+  participants   String[]
+
+  organizerId    String
+  organizer      Teacher  @relation(fields: [organizerId], references: [id])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  subject        String
+  content        String
+  isUrgent       Boolean  @default(false)
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  groupTarget    String?
+
+  senderId       String
+  sender         User     @relation("SentMessages", fields: [senderId], references: [id])
+  
+  receiverId     String?
+  receiver       User?    @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}

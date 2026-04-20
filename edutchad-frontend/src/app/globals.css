@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+/* Styles d'impression pour les bulletins */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #bulletin-content,
+  #bulletin-content * {
+    visibility: visible;
+  }
+  #bulletin-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white;
+    padding: 20px;
+    box-shadow: none;
+  }
+  .no-print {
+    display: none !important;
+  }
+  button, .sticky {
+    display: none !important;
+  }
+  .bg-gray-50, .bg-blue-50, .bg-green-50, .bg-yellow-50 {
+    background-color: #f9fafb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid #000 !important;
+  }
+}
+
+/* Police pour l'arabe */
+.font-arabic {
+  font-family: 'Amiri', 'Scheherazade', 'Traditional Arabic', serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}

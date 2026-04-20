@@ -1,0 +1,274 @@
+// src/components/ui/Icon.tsx
+'use client';
+
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faTachometerAlt,
+  faChalkboardTeacher,
+  faUserTie,
+  faBook,
+  faUsers,
+  faMoneyBillWave,
+  faCalendarAlt,
+  faClipboardList,
+  faSignOutAlt,
+  faSchool,
+  faUserGraduate,
+  faPlus,
+  faEdit,
+  faTrash,
+  faEye,
+  faCrown,
+  faSyncAlt,
+  faHistory,
+  faArrowRight,
+  faUserPlus,
+  faSpinner,
+  faInfoCircle,
+  faChartLine,
+  faChartPie,
+  faBolt,
+  faCheck,
+  faTimes,
+  faSave,
+  faLayerGroup,
+  faUserSlash,
+  faArrowUp,
+  faArrowDown,
+  faExclamationTriangle,
+  faClock,
+  faCalendar,
+  faChevronRight,
+  faChevronDown,
+  faChevronLeft,
+  faSearch,
+  faFilter,
+  faDownload,
+  faPrint,
+  faFileAlt,
+  faMoneyCheck,
+  faCreditCard,
+  faGift,
+  faShoppingCart,
+  faCog,
+  faUserCog,
+  faPhone,
+  faEnvelope,
+  faBookOpen,
+  faPlusCircle,
+  faBriefcase,
+  faCompress,
+  faExpand,
+  faStar,
+  faMars,
+  faKey,
+  faVenus,
+  faTable,
+  faChartBar,
+  faAddressCard,
+  faBuilding,
+  faFileInvoice,
+  faCheckCircle,
+  faArrowLeft,
+  faLock,
+  faShieldAlt,
+  faExclamationCircle,
+  faSignInAlt,
+  faEyeSlash,
+  faPlayCircle,
+  faRocket,
+  faMapMarkerAlt,
+  faComment,
+  faBell,
+  faUserCircle,
+  faCalendarDay,
+  faChalkboard,
+  faSync,
+  faInbox,
+
+  faUsers as faUsersSolid,
+  faPalette,
+  faCalendarCheck,
+  faCalculator,
+  faFlask,
+  faTags,
+  faCoffee,
+  faHourglassHalf,
+  faAtom,
+  faCircle,
+  faThLarge,
+  faBirthdayCake,
+  faVenusMars,
+  faPen,
+  faCheckDouble,
+  faPaperPlane,
+  faCookieBite,
+  faBullhorn,
+  faUndo,
+  faGavel
+} from '@fortawesome/free-solid-svg-icons';
+import { faLinkedinIn } from '@fortawesome/free-brands-svg-icons/faLinkedinIn';
+
+// Map des icônes
+const iconMap = {
+  // Navigation
+  'fa-tachometer-alt': faTachometerAlt,
+  'fa-chalkboard-teacher': faChalkboardTeacher,
+  'fa-user-tie': faUserTie,
+  'fa-book': faBook,
+  'fa-calendar-check': faCalendarCheck,
+  'fa-times-circle': faTimes,
+  'fa-calculator': faCalculator,
+  'fa-flask': faFlask,
+  'fa-tags': faTags,
+  'fa-users': faUsers,
+  'fa-bell':faBell,
+  'fa-sync':faSync,
+  'fa-calendar-day':faCalendarDay,
+  'fa-user-circle':faUserCircle,
+  'fa-comment':faComment,
+  'fa-money-bill-wave': faMoneyBillWave,
+  'fa-calendar-alt': faCalendarAlt,
+  'fa-clipboard-list': faClipboardList,
+  'fa-sign-out-alt': faSignOutAlt,
+  'fa-school': faSchool,
+  'fa-hourglass-half': faHourglassHalf,
+  'fa-user-graduate': faUserGraduate,
+  'fa-table':faTable,
+  'fa-chart-bar':faChartBar,
+  'fa-address-card':faAddressCard,
+  'fa-building':faBuilding,
+  'fa-file-invoice':faFileInvoice,
+  'fa-check-circle':faCheckCircle,
+  'fa-arrow-left':faArrowLeft,
+  'fa-key':faKey,
+  'fa-paper-plane':faPaperPlane,
+  'fa-cookie-bite':faCookieBite,
+  'fa-phone-alt':faPhone,
+  'fa-linkedin-in':faLinkedinIn,
+  'fa-birthday-cake':faBirthdayCake,
+  'fa-lock':faLock,
+  'fa-shield-alt':faShieldAlt,
+  'fa-exclamation-circle':faExclamationCircle,
+  'fa-sign-in-alt':faSignInAlt,
+  'fa-check-double':faCheckDouble,
+  'fa-eye-slash':faEyeSlash,
+  'fa-play-circle':faPlayCircle,
+  'fa-rocket':faRocket,
+  'fa-map-marker-alt':faMapMarkerAlt,
+  'fa-user-cog':faUserCog,
+  'fa-chalkboard':faChalkboard,
+  'fa-atom':faAtom,
+  'fa-th':faThLarge,
+  'fa-list':faThLarge,
+  'fa-user-friends':faUsersSolid,
+  'fa-venus-mars':faVenusMars,
+  'fa-pen':faPen,
+  'fa-id-card':faAddressCard,
+  'fa-graduation-cap':faUserGraduate,
+  'fa-circle':faCircle,
+  'fa-user-edit':faEdit,
+  'fa-calendar-times':faCalendar,
+  'fa-undo':faUndo,
+  'fa-chevron-up':faChevronDown,
+  'fa-gavel':faGavel,
+  
+  // Actions
+  'fa-plus': faPlus,
+  'fa-edit': faEdit,
+  'fa-trash': faTrash,
+  'fa-eye': faEye,
+  'fa-crown': faCrown,
+  'fa-sync-alt': faSyncAlt,
+  'fa-history': faHistory,
+  'fa-arrow-right': faArrowRight,
+  'fa-user-plus': faUserPlus,
+  'fa-spinner': faSpinner,
+  'fa-info-circle': faInfoCircle,
+  'fa-chart-line': faChartLine,
+  'fa-chart-pie': faChartPie,
+  'fa-bolt': faBolt,
+  'fa-check': faCheck,
+  'fa-times': faTimes,
+  'fa-save': faSave,
+  'fa-layer-group': faLayerGroup,
+  'fa-user-slash': faUserSlash,
+  'fa-arrow-up': faArrowUp,
+  'fa-arrow-down': faArrowDown,
+  'fa-exclamation-triangle': faExclamationTriangle,
+  'fa-clock': faClock,
+  'fa-calendar': faCalendar,
+  'fa-bullhorn': faBullhorn,
+  'fa-comments': faComment,
+  'fa-user-times': faUserSlash,
+  
+  // Chevrons
+  'fa-chevron-right': faChevronRight,
+  'fa-chevron-down': faChevronDown,
+  'fa-chevron-left': faChevronLeft,
+  'fa-palette':faPalette,
+  
+  // Recherche et filtres
+  'fa-search': faSearch,
+  'fa-filter': faFilter,
+  
+  
+  // Documents
+  'fa-download': faDownload,
+  'fa-print': faPrint,
+  'fa-file-alt': faFileAlt,
+
+  
+  // Finances
+  'fa-money-check': faMoneyCheck,
+  'fa-credit-card': faCreditCard,
+  'fa-gift': faGift,
+  'fa-shopping-cart': faShoppingCart,
+  'fa-coffee': faCoffee,
+  'fa-calendar-week': faCalendar,
+  'fa-inbox': faInbox,
+  
+  // Paramètres
+  'fa-cog': faCog,
+  
+  // Contact
+  'fa-phone': faPhone,
+  'fa-envelope': faEnvelope,
+  
+  // Éducation
+  'fa-book-open': faBookOpen,
+  'fa-plus-circle': faPlusCircle,
+  
+  // Nouveaux icônes
+  'fa-briefcase': faBriefcase,
+  'fa-compress': faCompress,
+  'fa-expand': faExpand,
+  'fa-users-solid': faUsersSolid,
+  'fa-star': faStar,
+  'fa-mars':faMars,
+  'fa-users-slash':faUserSlash,
+  'fa-venus':faVenus
+};
+
+interface IconProps {
+  icon: keyof typeof iconMap;
+  className?: string;
+  onClick?: () => void;
+}
+
+export default function Icon({ icon, className = '', onClick }: IconProps) {
+  const iconDefinition = iconMap[icon];
+  
+  if (!iconDefinition) {
+    console.warn(`Icône "${icon}" non trouvée`);
+    return null;
+  }
+
+  return (
+    <FontAwesomeIcon 
+      icon={iconDefinition} 
+      className={className} 
+      onClick={onClick}
+    />
+  );
+}
