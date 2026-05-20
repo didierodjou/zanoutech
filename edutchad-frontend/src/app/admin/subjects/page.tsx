@@ -391,7 +391,7 @@ export default function SubjectsPage() {
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen -m-4 md:-m-8 p-4 md:p-8">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>

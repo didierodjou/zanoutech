@@ -5,233 +5,177 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ClassesService {
   constructor(private prisma: PrismaService) {}
 
-  // 1. Créer une classe
-  async create(data: any) {
+  async create(data: { name: string; level: string; schoolYearId: string }) {
     return this.prisma.class.create({
       data: {
         name: data.name,
         level: data.level,
-      }
+        schoolYearId: data.schoolYearId,
+      },
+      include: { schoolYear: true, mainTeacher: true },
     });
   }
 
-  // 2. Lister toutes les classes
   async findAll() {
     return this.prisma.class.findMany({
       include: {
-        mainTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        },
-        _count: {
-          select: { students: true }
-        }
+        mainTeacher: { select: { id: true, firstName: true, lastName: true } },
+        schoolYear: true, // <-- ajout
+        _count: { select: { students: true } },
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
   }
 
-  // 3. Trouver une classe par ID
   async findOne(id: string) {
     const classe = await this.prisma.class.findUnique({
       where: { id },
       include: {
-        mainTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        },
-        _count: {
-          select: { students: true }
-        }
-      }
+        mainTeacher: { select: { id: true, firstName: true, lastName: true } },
+        schoolYear: true,
+        _count: { select: { students: true } },
+      },
     });
-
-    if (!classe) {
-      throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
-    }
-
+    if (!classe) throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
     return classe;
   }
 
-  // 4. Détails complets d'une classe (avec élèves)
   async getClassDetails(id: string) {
     const classe = await this.prisma.class.findUnique({
       where: { id },
       include: {
-        mainTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        },
+        mainTeacher: { select: { id: true, firstName: true, lastName: true } },
+        schoolYear: true,
         students: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            registrationNo: true,
-          },
-          orderBy: { lastName: 'asc' }
+          select: { id: true, firstName: true, lastName: true, registrationNo: true },
+          orderBy: { lastName: 'asc' },
         },
         courses: {
           include: {
-            subject: {
-              select: {
-                id: true,
-                name: true,
-              }
-            },
-            teacher: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              }
-            }
-          }
-        }
-      }
+            subject: { select: { id: true, name: true } },
+            teacher: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+      },
     });
-
-    if (!classe) {
-      throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
-    }
-
-    return {
-      ...classe,
-      studentCount: classe.students.length,
-    };
+    if (!classe) throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
+    return { ...classe, studentCount: classe.students.length };
   }
 
-  // 5. Mettre à jour une classe
-  async update(id: string, data: any) {
-    const classe = await this.prisma.class.findUnique({
-      where: { id }
-    });
-
-    if (!classe) {
-      throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
-    }
-
+  async update(id: string, data: { name: string; level: string; schoolYearId: string }) {
+    const classe = await this.prisma.class.findUnique({ where: { id } });
+    if (!classe) throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
     return this.prisma.class.update({
       where: { id },
       data: {
         name: data.name,
         level: data.level,
+        schoolYearId: data.schoolYearId,
       },
-      include: {
-        mainTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        }
-      }
+      include: { mainTeacher: true, schoolYear: true },
     });
   }
 
-  // 6. Assigner un professeur principal
   async assignMainTeacher(classId: string, teacherId: string) {
-    // Vérifier si la classe existe
-    const classe = await this.prisma.class.findUnique({
-      where: { id: classId }
-    });
+    const classe = await this.prisma.class.findUnique({ where: { id: classId } });
+    if (!classe) throw new NotFoundException(`Classe avec ID ${classId} non trouvée`);
 
-    if (!classe) {
-      throw new NotFoundException(`Classe avec ID ${classId} non trouvée`);
-    }
+    const teacher = await this.prisma.teacher.findUnique({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException(`Professeur avec ID ${teacherId} non trouvé`);
 
-    // Vérifier si le professeur existe
-    const teacher = await this.prisma.teacher.findUnique({
-      where: { id: teacherId }
-    });
-
-    if (!teacher) {
-      throw new NotFoundException(`Professeur avec ID ${teacherId} non trouvé`);
-    }
-
-    // Retirer le statut de professeur principal de l'ancien titulaire
-    await this.prisma.teacher.updateMany({
-      where: { 
-        mainClassId: classId
-      },
-      data: { 
-        mainClassId: null
-      }
-    });
-
-    // Assigner le nouveau professeur principal
+    // ✅ updateMany n'accepte pas les relations dans `data`.
+    // La relation mainTeacher/mainClass est 1-1 côté Class.
+    // On déconnecte via class.update si un prof est déjà assigné,
+    // puis on connecte le nouveau — tout en une seule opération.
     return this.prisma.class.update({
       where: { id: classId },
       data: {
-        mainTeacher: {
-          connect: { id: teacherId }
-        }
+        // connect remplace automatiquement l'existant sur une relation 1-1
+        mainTeacher: { connect: { id: teacherId } },
       },
-      include: { 
+      include: {
         mainTeacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        }
-      }
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
     });
   }
 
-  // 7. Supprimer une classe
-   async delete(id: string) {
-    // Vérifier si la classe existe
+  async delete(id: string) {
     const classe = await this.prisma.class.findUnique({
       where: { id },
       include: {
-        _count: {
-          select: { 
-            students: true,
-            courses: true 
-          }
-        }
-      }
+        _count: { select: { students: true, courses: true } },
+      },
     });
 
-    if (!classe) {
-      throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
-    }
+    if (!classe) throw new NotFoundException(`Classe avec ID ${id} non trouvée`);
 
-    // RÈGLE 1 : Vérifier s'il y a des élèves
     if (classe._count.students > 0) {
-      // On lance une BadRequestException (Code 400) avec un message clair
       throw new BadRequestException(
-        `Impossible de supprimer la classe "${classe.name}". Elle contient encore ${classe._count.students} élève(s). Veuillez d'abord supprimer ou déplacer ces élèves.`
+        `Impossible de supprimer la classe "${classe.name}". Elle contient encore ${classe._count.students} élève(s).`,
       );
     }
 
-    // RÈGLE 2 : Vérifier s'il y a des cours programmés
     if (classe._count.courses > 0) {
       throw new BadRequestException(
-        `Impossible de supprimer la classe "${classe.name}". Des cours y sont associés. Veuillez d'abord supprimer les cours.`
+        `Impossible de supprimer la classe "${classe.name}". Des cours y sont associés.`,
       );
     }
 
-    // D'abord, retirer le statut de prof principal si nécessaire
-    await this.prisma.teacher.updateMany({
-      where: { mainClassId: id },
-      data: { mainClassId: null }
-    });
+    // ✅ Retirer le prof principal via la classe (pas via teacher.updateMany)
+    // La suppression de la classe via cascade Prisma déconnecte automatiquement
+    // la relation 1-1, mais on le fait explicitement pour être propre.
+    if (classe.mainTeacherId) {
+      await this.prisma.class.update({
+        where: { id },
+        data: { mainTeacher: { disconnect: true } },
+      });
+    }
 
-    // Enfin, supprimer la classe
-    return this.prisma.class.delete({
-      where: { id }
+    return this.prisma.class.delete({ where: { id } });
+  }
+
+  async addCourse(
+    classId: string,
+    data: { subjectId: string; teacherId: string; coefficient: number },
+  ) {
+    const classe = await this.prisma.class.findUnique({ where: { id: classId } });
+    if (!classe) throw new NotFoundException(`Classe ${classId} non trouvée`);
+
+    const existing = await this.prisma.course.findFirst({
+      where: { classId, subjectId: data.subjectId },
+    });
+    if (existing) throw new BadRequestException('Cette matière est déjà assignée à cette classe');
+
+    return this.prisma.course.create({
+      data: {
+        classId,
+        subjectId: data.subjectId,
+        teacherId: data.teacherId,
+        coefficient: data.coefficient,
+      },
+      include: { subject: true, teacher: true },
     });
   }
 
+  async updateCourse(
+    courseId: string,
+    data: { subjectId?: string; teacherId?: string; coefficient?: number },
+  ) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) throw new NotFoundException(`Cours ${courseId} non trouvé`);
+
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data,
+      include: { subject: true, teacher: true },
+    });
+  }
+
+  async deleteCourse(courseId: string) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) throw new NotFoundException(`Cours ${courseId} non trouvé`);
+    return this.prisma.course.delete({ where: { id: courseId } });
+  }
 }

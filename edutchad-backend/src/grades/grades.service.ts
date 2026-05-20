@@ -3,6 +3,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BulletinStatus, Period } from '@prisma/client';
 
+// ✅ Map trimester → Period (TRIMESTER_ pas TRIMESTRE_)
+const PERIOD_MAP: Record<number, Period> = {
+  1: Period.TRIMESTER_1,
+  2: Period.TRIMESTER_2,
+  3: Period.TRIMESTER_3,
+};
+
 @Injectable()
 export class GradesService {
   constructor(private prisma: PrismaService) {}
@@ -11,21 +18,10 @@ export class GradesService {
     return this.prisma.grade.findMany({
       include: {
         student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            registrationNo: true
-          }
+          select: { id: true, firstName: true, lastName: true, registrationNo: true },
         },
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
-      }
+        subject: { select: { id: true, name: true, color: true } },
+      },
     });
   }
 
@@ -34,76 +30,40 @@ export class GradesService {
       where: { id },
       include: {
         student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            registrationNo: true
-          }
+          select: { id: true, firstName: true, lastName: true, registrationNo: true },
         },
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
-      }
+        subject: { select: { id: true, name: true, color: true } },
+      },
     });
 
-    if (!grade) {
-      throw new NotFoundException(`Note avec ID ${id} non trouvée`);
-    }
-
+    if (!grade) throw new NotFoundException(`Note avec ID ${id} non trouvée`);
     return grade;
   }
 
   async update(id: string, data: any) {
-    const grade = await this.prisma.grade.findUnique({
-      where: { id }
-    });
-
-    if (!grade) {
-      throw new NotFoundException(`Note avec ID ${id} non trouvée`);
-    }
-
-    // Déterminer la période en fonction du trimestre si fourni
-    let period: Period | undefined;
-    if (data.trimester) {
-      if (data.trimester === 1) period = Period.TRIMESTRE_1;
-      else if (data.trimester === 2) period = Period.TRIMESTRE_2;
-      else if (data.trimester === 3) period = Period.TRIMESTRE_3;
-    }
+    const grade = await this.prisma.grade.findUnique({ where: { id } });
+    if (!grade) throw new NotFoundException(`Note avec ID ${id} non trouvée`);
 
     const updateData: any = {};
-    
     if (data.value !== undefined) updateData.value = data.value;
     if (data.coefficient !== undefined) updateData.coefficient = data.coefficient;
-    if (period !== undefined) updateData.period = period;
-    if (data.trimester !== undefined) updateData.trimester = data.trimester;
+    if (data.trimester !== undefined) {
+      updateData.trimester = data.trimester;
+      updateData.period = PERIOD_MAP[data.trimester]; // ✅
+    }
 
     return this.prisma.grade.update({
       where: { id },
       data: updateData,
-      include: {
-        subject: true
-      }
+      include: { subject: true },
     });
   }
 
   async delete(id: string) {
-    const grade = await this.prisma.grade.findUnique({
-      where: { id }
-    });
+    const grade = await this.prisma.grade.findUnique({ where: { id } });
+    if (!grade) throw new NotFoundException(`Note avec ID ${id} non trouvée`);
 
-    if (!grade) {
-      throw new NotFoundException(`Note avec ID ${id} non trouvée`);
-    }
-
-    await this.prisma.grade.delete({
-      where: { id }
-    });
-
+    await this.prisma.grade.delete({ where: { id } });
     return { deleted: true, id };
   }
 
@@ -116,60 +76,25 @@ export class GradesService {
   }) {
     const { studentId, subjectId, trimester, value, coefficient = 1 } = data;
 
-    // Vérifier si l'élève existe
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId }
-    });
+    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Élève non trouvé');
 
-    if (!student) {
-      throw new NotFoundException('Élève non trouvé');
-    }
+    const subject = await this.prisma.subject.findUnique({ where: { id: subjectId } });
+    if (!subject) throw new NotFoundException('Matière non trouvée');
 
-    // Vérifier si la matière existe
-    const subject = await this.prisma.subject.findUnique({
-      where: { id: subjectId }
-    });
+    const period = PERIOD_MAP[trimester]; // ✅
 
-    if (!subject) {
-      throw new NotFoundException('Matière non trouvée');
-    }
-
-    // Déterminer la période en fonction du trimestre
-    let period: Period = Period.TRIMESTRE_1;
-    if (trimester === 2) period = Period.TRIMESTRE_2;
-    else if (trimester === 3) period = Period.TRIMESTRE_3;
-
-    // Chercher si une note existe déjà (contrainte unique sur studentId, subjectId, trimester)
     try {
       const grade = await this.prisma.grade.upsert({
         where: {
-          studentId_subjectId_trimester: {
-            studentId,
-            subjectId,
-            trimester
-          }
+          studentId_subjectId_trimester: { studentId, subjectId, trimester },
         },
-        update: {
-          value,
-          coefficient,
-          period
-        },
-        create: {
-          value,
-          coefficient,
-          period,
-          trimester,
-          studentId,
-          subjectId
-        },
-        include: {
-          subject: true
-        }
+        update: { value, coefficient, period },
+        create: { value, coefficient, period, trimester, studentId, subjectId },
+        include: { subject: true },
       });
 
-      // Mettre à jour ou créer le bulletin
       await this.updateBulletin(studentId, trimester as 1 | 2 | 3);
-
       return grade;
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la note:', error);
@@ -178,74 +103,57 @@ export class GradesService {
   }
 
   async updateBulletin(studentId: string, trimester: 1 | 2 | 3) {
-    // Déterminer la période
-    let period: Period = Period.TRIMESTRE_1;
-    if (trimester === 2) period = Period.TRIMESTRE_2;
-    else if (trimester === 3) period = Period.TRIMESTRE_3;
+    const period = PERIOD_MAP[trimester]; // ✅
 
-    // Récupérer toutes les notes de l'élève pour ce trimestre
     const grades = await this.prisma.grade.findMany({
-      where: {
-        studentId,
-        trimester
-      }
+      where: { studentId, trimester },
     });
 
     if (grades.length === 0) return;
 
-    // Calculer la moyenne générale pondérée
     let totalPoints = 0;
     let totalCoefficients = 0;
-
-    grades.forEach(g => {
+    grades.forEach((g) => {
       totalPoints += g.value * g.coefficient;
       totalCoefficients += g.coefficient;
     });
 
-    const generalAverage = totalCoefficients > 0 
-      ? Number((totalPoints / totalCoefficients).toFixed(2))
-      : 0;
+    const generalAverage =
+      totalCoefficients > 0 ? Number((totalPoints / totalCoefficients).toFixed(2)) : 0;
 
-    // Déterminer le statut
-    let status: BulletinStatus = BulletinStatus.PENDING;
-    if (trimester === 3) {
-      // Pour le 3ème trimestre, on peut considérer comme confirmé si moyenne > 0
-      status = generalAverage > 0 ? BulletinStatus.CONFIRMED : BulletinStatus.PENDING;
-    } else {
-      status = generalAverage > 0 ? BulletinStatus.VERIFIED : BulletinStatus.PENDING;
-    }
+    const status: BulletinStatus =
+      trimester === 3
+        ? generalAverage > 0 ? BulletinStatus.CONFIRMED : BulletinStatus.PENDING
+        : generalAverage > 0 ? BulletinStatus.VERIFIED : BulletinStatus.PENDING;
 
-    // Déterminer l'appréciation
-    let appreciation = '';
+    let appreciation = 'Aucune note';
     if (generalAverage >= 16) appreciation = 'Excellent';
     else if (generalAverage >= 14) appreciation = 'Très bien';
     else if (generalAverage >= 12) appreciation = 'Bien';
     else if (generalAverage >= 10) appreciation = 'Passable';
     else if (generalAverage > 0) appreciation = 'Insuffisant';
-    else appreciation = 'Aucune note';
 
-    // Utiliser upsert pour créer ou mettre à jour le bulletin
     try {
+      // ✅ La contrainte @@unique est sur [studentId, trimester] → studentId_trimester
       await this.prisma.bulletin.upsert({
         where: {
-          studentId_period: {
-            studentId,
-            period
-          }
+          studentId_trimester: { studentId, trimester }, // ✅
         },
         update: {
           generalAverage,
           status,
           appreciation,
-          generatedAt: new Date()
+          period,
+          generatedAt: new Date(),
         },
         create: {
           period,
+          trimester, // ✅ champ obligatoire
           generalAverage,
           status,
           appreciation,
-          studentId
-        }
+          studentId,
+        },
       });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du bulletin:', error);
@@ -258,25 +166,18 @@ export class GradesService {
 
     return this.prisma.grade.findMany({
       where,
-      include: {
-        subject: true
-      },
-      orderBy: [
-        { trimester: 'asc' },
-        { subject: { name: 'asc' } }
-      ]
+      include: { subject: true },
+      orderBy: [{ trimester: 'asc' }, { subject: { name: 'asc' } }],
     });
   }
 
   async getGrades(classId: string, subjectId: string, trimester: number) {
-    // Récupérer les élèves de la classe
     const students = await this.prisma.student.findMany({
       where: { classId },
       select: { id: true },
     });
-    const studentIds = students.map(s => s.id);
+    const studentIds = students.map((s) => s.id);
 
-    // Récupérer les contrôles existants (type DEVOIR ou INTERROGATION)
     const controls = await this.prisma.control.findMany({
       where: {
         studentId: { in: studentIds },
@@ -286,34 +187,33 @@ export class GradesService {
       },
     });
 
-    // Récupérer les grades (moyennes)
     const grades = await this.prisma.grade.findMany({
-      where: {
-        studentId: { in: studentIds },
-        subjectId,
-        trimester,
-      },
+      where: { studentId: { in: studentIds }, subjectId, trimester },
     });
 
-    // Regrouper par étudiant
-    return studentIds.map(studentId => {
-      const devoirControl = controls.find(c => c.studentId === studentId && c.type === 'DEVOIR');
-      const interroControls = controls.filter(c => c.studentId === studentId && c.type === 'INTERROGATION');
-      const grade = grades.find(g => g.studentId === studentId);
+    return studentIds
+      .map((studentId) => {
+        const devoirControl = controls.find(
+          (c) => c.studentId === studentId && c.type === 'DEVOIR',
+        );
+        const interroControls = controls.filter(
+          (c) => c.studentId === studentId && c.type === 'INTERROGATION',
+        );
+        const grade = grades.find((g) => g.studentId === studentId);
 
-      return {
-        studentId,
-        subjectId,
-        trimester,
-        devoir: devoirControl?.value ?? null,
-        interrogations: interroControls.map(c => c.value),
-        value: grade?.value ?? null,
-        coefficient: grade?.coefficient ?? null,
-      };
-    }).filter(r => r.devoir !== null || r.interrogations.length > 0 || r.value !== null);
+        return {
+          studentId,
+          subjectId,
+          trimester,
+          devoir: devoirControl?.value ?? null,
+          interrogations: interroControls.map((c) => c.value),
+          value: grade?.value ?? null,
+          coefficient: grade?.coefficient ?? null,
+        };
+      })
+      .filter((r) => r.devoir !== null || r.interrogations.length > 0 || r.value !== null);
   }
 
-  // ── Sauvegarder les notes d'un élève ─────────────────────────────────────
   async saveGrade(data: {
     studentId: string;
     subjectId: string;
@@ -325,73 +225,67 @@ export class GradesService {
   }) {
     const { studentId, subjectId, trimester, value, coefficient, devoir, interrogations } = data;
 
-    // Déterminer la période en fonction du trimestre
-    let period: Period = Period.TRIMESTRE_1;
-    if (trimester === 2) period = Period.TRIMESTRE_2;
-    else if (trimester === 3) period = Period.TRIMESTRE_3;
+    const period = PERIOD_MAP[trimester]; // ✅
 
     const ops: Promise<any>[] = [];
 
-    // 1. Upsert la moyenne finale dans Grade (avec le champ period obligatoire)
     ops.push(
       this.prisma.grade.upsert({
-        where: {
-          studentId_subjectId_trimester: { studentId, subjectId, trimester },
-        },
-        update: { 
-          value, 
-          coefficient: coefficient ?? 1,
-          period // Ajout du period dans update
-        },
-        create: { 
-          studentId, 
-          subjectId, 
-          trimester, 
-          value, 
-          coefficient: coefficient ?? 1,
-          period // Ajout du period dans create
-        },
-      })
+        where: { studentId_subjectId_trimester: { studentId, subjectId, trimester } },
+        update: { value, coefficient: coefficient ?? 1, period },
+        create: { studentId, subjectId, trimester, value, coefficient: coefficient ?? 1, period },
+      }),
     );
 
-    // 2. Supprimer les anciens contrôles DEVOIR pour cet élève/matière/trimestre
     ops.push(
       this.prisma.control.deleteMany({
         where: { studentId, subjectId, trimester, type: 'DEVOIR' },
-      })
+      }),
     );
 
-    // 3. Supprimer les anciens contrôles INTERROGATION
     ops.push(
       this.prisma.control.deleteMany({
         where: { studentId, subjectId, trimester, type: 'INTERROGATION' },
-      })
+      }),
     );
 
     await Promise.all(ops);
 
     const creates: Promise<any>[] = [];
 
-    // 4. Créer le nouveau contrôle DEVOIR si fourni
+    // ✅ Control.title obligatoire — généré automatiquement
     if (devoir !== undefined && devoir > 0) {
       creates.push(
         this.prisma.control.create({
-          data: { studentId, subjectId, trimester, value: devoir, type: 'DEVOIR' },
-        })
+          data: {
+            title: `Devoir T${trimester}`, // ✅
+            studentId,
+            subjectId,
+            trimester,
+            value: devoir,
+            type: 'DEVOIR',
+          },
+        }),
       );
     }
 
-    // 5. Créer les contrôles INTERROGATION
     if (interrogations && interrogations.length > 0) {
-      for (const interroValue of interrogations) {
+      interrogations.forEach((interroValue, index) => {
         if (interroValue > 0) {
           creates.push(
             this.prisma.control.create({
-              data: { studentId, subjectId, trimester, value: interroValue, type: 'INTERROGATION' },
-            })
+              data: {
+                title: `Interrogation ${index + 1} T${trimester}`, // ✅
+                studentId,
+                subjectId,
+                trimester,
+                value: interroValue,
+                type: 'INTERROGATION',
+              },
+            }),
           );
         }
-      }
+      });
     }
 
     if (creates.length > 0) await Promise.all(creates);

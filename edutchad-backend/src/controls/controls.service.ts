@@ -7,86 +7,47 @@ export class ControlsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    // Vérifier si l'élève existe
-    const student = await this.prisma.student.findUnique({
-      where: { id: data.studentId }
-    });
+    const student = await this.prisma.student.findUnique({ where: { id: data.studentId } });
+    if (!student) throw new NotFoundException(`Élève avec ID ${data.studentId} non trouvé`);
 
-    if (!student) {
-      throw new NotFoundException(`Élève avec ID ${data.studentId} non trouvé`);
-    }
+    const subject = await this.prisma.subject.findUnique({ where: { id: data.subjectId } });
+    if (!subject) throw new NotFoundException(`Matière avec ID ${data.subjectId} non trouvée`);
 
-    // Vérifier si la matière existe
-    const subject = await this.prisma.subject.findUnique({
-      where: { id: data.subjectId }
-    });
-
-    if (!subject) {
-      throw new NotFoundException(`Matière avec ID ${data.subjectId} non trouvée`);
-    }
-
-    // Vérifier si un contrôle similaire existe déjà (pour éviter les doublons)
     const existingControl = await this.prisma.control.findFirst({
       where: {
         studentId: data.studentId,
         subjectId: data.subjectId,
         trimester: data.trimester,
-        type: data.type
-      }
+        type: data.type,
+      },
     });
 
+    const includeClause = {
+      student: { select: { id: true, firstName: true, lastName: true } },
+      subject: { select: { id: true, name: true, color: true } },
+    };
+
     if (existingControl) {
-      // Mettre à jour le contrôle existant
       return this.prisma.control.update({
         where: { id: existingControl.id },
-        data: {
-          value: data.value,
-          date: new Date()
-        },
-        include: {
-          student: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          subject: {
-            select: {
-              id: true,
-              name: true,
-              color: true
-            }
-          }
-        }
+        data: { value: data.value, date: new Date() },
+        include: includeClause,
       });
     }
 
-    // Créer un nouveau contrôle
+    // ✅ title est obligatoire dans le schéma (Control.title String)
+    const title = data.title || `${data.type} T${data.trimester}`;
+
     return this.prisma.control.create({
       data: {
+        title,                        // ✅ champ obligatoire
         type: data.type,
-        value: data.value,
+        value: data.value ?? null,    // ✅ Float? — nullable
         trimester: data.trimester,
         studentId: data.studentId,
-        subjectId: data.subjectId
+        subjectId: data.subjectId,
       },
-      include: {
-        student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
-      }
+      include: includeClause,
     });
   }
 
@@ -94,24 +55,11 @@ export class ControlsService {
     return this.prisma.control.findMany({
       include: {
         student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            registrationNo: true
-          }
+          select: { id: true, firstName: true, lastName: true, registrationNo: true },
         },
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
+        subject: { select: { id: true, name: true, color: true } },
       },
-      orderBy: {
-        date: 'desc'
-      }
+      orderBy: { date: 'desc' },
     });
   }
 
@@ -125,23 +73,14 @@ export class ControlsService {
             firstName: true,
             lastName: true,
             registrationNo: true,
-            class: true
-          }
+            class: true,
+          },
         },
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
-      }
+        subject: { select: { id: true, name: true, color: true } },
+      },
     });
 
-    if (!control) {
-      throw new NotFoundException(`Contrôle avec ID ${id} non trouvé`);
-    }
-
+    if (!control) throw new NotFoundException(`Contrôle avec ID ${id} non trouvé`);
     return control;
   }
 
@@ -149,18 +88,9 @@ export class ControlsService {
     return this.prisma.control.findMany({
       where: { studentId },
       include: {
-        subject: {
-          select: {
-            id: true,
-            name: true,
-            color: true
-          }
-        }
+        subject: { select: { id: true, name: true, color: true } },
       },
-      orderBy: [
-        { trimester: 'asc' },
-        { date: 'desc' }
-      ]
+      orderBy: [{ trimester: 'asc' }, { date: 'desc' }],
     });
   }
 
@@ -169,47 +99,41 @@ export class ControlsService {
       where: { subjectId },
       include: {
         student: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            registrationNo: true
-          }
-        }
+          select: { id: true, firstName: true, lastName: true, registrationNo: true },
+        },
       },
-      orderBy: {
-        date: 'desc'
-      }
+      orderBy: { date: 'desc' },
     });
   }
 
   async getStats(studentId: string, trimester: number) {
     const controls = await this.prisma.control.findMany({
-      where: {
-        studentId,
-        trimester
-      }
+      where: { studentId, trimester },
     });
 
-    const devoir = controls.find(c => c.type === 'DEVOIR');
-    const interrogations = controls.filter(c => c.type === 'INTERROGATION');
+    const devoir = controls.find((c) => c.type === 'DEVOIR');
+    const interrogations = controls.filter((c) => c.type === 'INTERROGATION');
 
     let average = 0;
+
     if (devoir && interrogations.length > 0) {
-      const interroAvg = interrogations.reduce((acc, curr) => acc + curr.value, 0) / interrogations.length;
-      average = (devoir.value + interroAvg) / 2;
+      // ✅ Control.value est Float? (nullable) — utiliser ?? 0
+      const interroAvg =
+        interrogations.reduce((acc, curr) => acc + (curr.value ?? 0), 0) / interrogations.length;
+      average = ((devoir.value ?? 0) + interroAvg) / 2;
     } else if (devoir) {
-      average = devoir.value;
+      average = devoir.value ?? 0; // ✅
     } else if (interrogations.length > 0) {
-      average = interrogations.reduce((acc, curr) => acc + curr.value, 0) / interrogations.length;
+      average =
+        interrogations.reduce((acc, curr) => acc + (curr.value ?? 0), 0) / interrogations.length; // ✅
     }
 
     return {
       trimester,
-      devoir: devoir?.value || null,
-      interrogations: interrogations.map(i => i.value),
+      devoir: devoir?.value ?? null,
+      interrogations: interrogations.map((i) => i.value ?? null),
       average: Number(average.toFixed(2)),
-      count: controls.length
+      count: controls.length,
     };
   }
 }

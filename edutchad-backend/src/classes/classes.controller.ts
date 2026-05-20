@@ -42,4 +42,26 @@ export class ClassesController {
   async delete(@Param('id') id: string) {
     return this.classesService.delete(id);
   }
+
+  // ==================== GESTION DES COURS (MATIÈRES) ====================
+  @Post(':id/courses')
+  async addCourse(
+    @Param('id') id: string,
+    @Body() body: { subjectId: string; teacherId: string; coefficient: number }
+  ) {
+    return this.classesService.addCourse(id, body);
+  }
+
+  @Put('courses/:courseId')
+  async updateCourse(
+    @Param('courseId') courseId: string,
+    @Body() body: { subjectId?: string; teacherId?: string; coefficient?: number }
+  ) {
+    return this.classesService.updateCourse(courseId, body);
+  }
+
+  @Delete('courses/:courseId')
+  async deleteCourse(@Param('courseId') courseId: string) {
+    return this.classesService.deleteCourse(courseId);
+  }
 }

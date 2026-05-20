@@ -219,6 +219,70 @@ export class AbsencesService {
       period: period || 'all'
     };
   }
+  async syncFromAttendance(attendanceId: string) {
+  const attendance = await this.prisma.attendance.findUnique({
+    where: { id: attendanceId },
+    include: { student: true, course: true }
+  });
+
+  if (!attendance) return null;
+
+  // Vérifier si une absence existe déjà
+  const existingAbsence = await this.prisma.absence.findFirst({
+    where: {
+      studentId: attendance.studentId,
+      date: {
+        gte: new Date(attendance.date.setHours(0, 0, 0, 0)),
+        lt: new Date(attendance.date.setHours(23, 59, 59, 999))
+      }
+    }
+  });
+
+  if (attendance.status === 'ABSENT') {
+    if (existingAbsence) {
+      return this.prisma.absence.update({
+        where: { id: existingAbsence.id },
+        data: {
+          type: 'ABSENCE',
+          isJustified: false,
+          courseId: attendance.courseId
+        }
+      });
+    } else {
+      return this.prisma.absence.create({
+        data: {
+          studentId: attendance.studentId,
+          date: attendance.date,
+          type: 'ABSENCE',
+          isJustified: false,
+          courseId: attendance.courseId
+        }
+      });
+    }
+  } else if (attendance.status === 'LATE') {
+    if (existingAbsence) {
+      return this.prisma.absence.update({
+        where: { id: existingAbsence.id },
+        data: {
+          type: 'RETARD',
+          courseId: attendance.courseId
+        }
+      });
+    } else {
+      return this.prisma.absence.create({
+        data: {
+          studentId: attendance.studentId,
+          date: attendance.date,
+          type: 'RETARD',
+          isJustified: false,
+          courseId: attendance.courseId
+        }
+      });
+    }
+  }
+
+  return null;
+}
 
   
 }

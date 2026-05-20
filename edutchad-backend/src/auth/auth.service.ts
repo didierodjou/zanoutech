@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+// src/auth/auth.service.ts
+import {
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -10,37 +14,39 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  // 1. Fonction pour valider l'utilisateur
+  // 1. Valider l'utilisateur (login)
   async validateUser(email: string, pass: string): Promise<any> {
-    // Chercher l'utilisateur par email
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    
-    // Si l'utilisateur n'existe pas
-    if (!user) {
-      throw new UnauthorizedException('Email incorrect');
-    }
+    const user = await this.prisma.user.findFirst({
+      where: { email, isDeleted: false },
+    });
 
-    // Vérifier le mot de passe (comparer hash)
+    if (!user) throw new UnauthorizedException('Email incorrect');
+    if (!user.isActive) throw new UnauthorizedException('Compte désactivé');
+
     const isMatch = await bcrypt.compare(pass, user.passwordHash);
-    if (!isMatch) {
-      throw new UnauthorizedException('Mot de passe incorrect');
-    }
+    if (!isMatch) throw new UnauthorizedException('Mot de passe incorrect');
 
-    // Si tout est bon, on retourne l'user sans le mot de passe
     const { passwordHash, ...result } = user;
     return result;
   }
 
-  // 2. Fonction pour générer le Token (Login)
+  // 2. Générer le token
   async login(user: any) {
     const payload = { email: user.email, sub: user.id, role: user.role };
     return {
-      access_token: this.jwtService.sign(payload), // Le "Pass" numérique
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      }
+      access_token: this.jwtService.sign(payload),
+      user: { id: user.id, email: user.email, role: user.role },
     };
+  }
+
+  // 3. ✅ Vérifier un token JWT — utilisé par JwtAuthGuard
+  //    Retourne le payload décodé { email, sub, role, iat, exp }
+  //    Lance UnauthorizedException si le token est invalide ou expiré
+  async verifyToken(token: string): Promise<{ email: string; sub: string; role: string }> {
+    try {
+      return await this.jwtService.verifyAsync(token);
+    } catch {
+      throw new UnauthorizedException('Token invalide ou expiré');
+    }
   }
 }

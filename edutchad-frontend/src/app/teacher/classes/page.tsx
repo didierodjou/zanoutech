@@ -3,7 +3,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import Icon from '@/components/ui/Icon';
-import Bulletin from '@/app/admin/students/components/Bulletin';
+import Bulletin from '@/components/ui/Bulletin';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Student {
@@ -24,6 +24,16 @@ interface Course {
   id: string;
   class: { id: string; name: string; level: string };
   subject: { id: string; name: string; color: string };
+  teacher?: { id: string };
+}
+
+interface ScheduleSlot {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  room?: string | null;
+  courseId: string;
 }
 
 interface BulletinRecord {
@@ -256,6 +266,12 @@ export default function ClassesPage() {
   const [savingAtt, setSavingAtt] = useState(false);
   const [attSaved, setAttSaved] = useState(false);
 
+  // Présence — sélection matière & créneau
+  const [attCourseId, setAttCourseId] = useState<string | null>(null);
+  const [attSlots, setAttSlots] = useState<ScheduleSlot[]>([]);
+  const [attSlotId, setAttSlotId] = useState<string | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   // Bulletins (PP seulement)
   const [bulletins, setBulletins] = useState<BulletinRecord[]>([]);
   const [loadingBul, setLoadingBul] = useState(false);
@@ -295,9 +311,12 @@ export default function ClassesPage() {
   // ── Charger élèves ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedClass) return;
+    const tid = getTeacherId();
     setLoadingStudents(true);
     setStudents([]);
-    const tid = getTeacherId();
+    setAttCourseId(null);
+    setAttSlotId(null);
+    setAttSlots([]);
     const isMain = selectedClass.id === mainClassId;
     const url =
       isMain && tid
@@ -328,7 +347,28 @@ export default function ClassesPage() {
       .finally(() => setLoadingStudents(false));
   }, [selectedClass, mainClassId]);
 
-  // ── Charger bulletins (PP seulement, à l'ouverture de l'onglet) ─────────
+  // ── Charger les créneaux quand une matière est sélectionnée pour la présence ──
+  useEffect(() => {
+    if (!attCourseId || !selectedClass) {
+      setAttSlots([]);
+      setAttSlotId(null);
+      return;
+    }
+    setLoadingSlots(true);
+    fetch(`${API}/schedule/class/${selectedClass.id}`, { headers })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: any[]) => {
+        const arr = Array.isArray(data) ? data : [];
+        // Filtrer les créneaux du cours sélectionné
+        const filtered = arr.filter((s: any) => s.courseId === attCourseId || s.course?.id === attCourseId);
+        setAttSlots(filtered);
+        setAttSlotId(filtered.length === 1 ? filtered[0].id : null);
+      })
+      .catch(() => setAttSlots([]))
+      .finally(() => setLoadingSlots(false));
+  }, [attCourseId, selectedClass]);
+
+
   useEffect(() => {
     if (!isMainClass || !selectedClass || activeTab !== 'bulletins') return;
     setLoadingBul(true);
@@ -348,9 +388,10 @@ export default function ClassesPage() {
 
   // ── Présence ──────────────────────────────────────────────────────────────
   const saveAttendance = async () => {
-    if (!selectedClass) return;
+    if (!selectedClass || !attCourseId) return;
     setSavingAtt(true);
     try {
+      const selectedSlot = attSlots.find(s => s.id === attSlotId);
       const entries = Object.entries(attendance).filter(([, v]) => v !== null);
       await Promise.all(
         entries.map(([studentId, status]) =>
@@ -360,10 +401,13 @@ export default function ClassesPage() {
             body: JSON.stringify({
               studentId,
               classId: selectedClass.id,
+              courseId: attCourseId,
+              scheduleSlotId: attSlotId || undefined,
               date: attendanceDate,
               type:
                 status === 'late' ? 'RETARD' : status === 'absent' ? 'ABSENCE' : 'PRESENCE',
               isJustified: false,
+              ...(selectedSlot ? { startTime: selectedSlot.startTime, endTime: selectedSlot.endTime } : {}),
             }),
           })
         )
@@ -438,6 +482,14 @@ export default function ClassesPage() {
     try {
       const res = await fetch(`${API}/bulletins/${b.id}/details`, { headers });
       const detail = res.ok ? await res.json() : null;
+
+      // Construire la note de conduite : priorité detail > bulletin record
+      const conduiteFromDetail = detail?.conduite;
+      const conduiteFromRecord = b.conduite;
+      const conduiteNote =
+        conduiteFromDetail?.note ?? conduiteFromRecord?.note ?? null;
+      const conduiteData = conduiteFromDetail ?? conduiteFromRecord ?? null;
+
       setBulletinView({
         student: {
           firstName: student.firstName,
@@ -449,13 +501,20 @@ export default function ClassesPage() {
         period: b.period,
         matieres: detail?.matieres || b.matieres || [],
         subjects: detail?.subjects || b.subjects || [],
-        moyennes: detail?.moyennes,
+        moyennes: {
+          ...(detail?.moyennes || {}),
+          conduite: conduiteNote,
+        },
+        bilans: detail?.bilans,
         trimestres: detail?.trimestres || b.trimestres,
         annuelle: detail?.annuelle || b.annuelle,
         rang: detail?.rang || b.rang,
-        absences: detail?.absences || b.absences || 0,
-        conduite: detail?.conduite || b.conduite,
+        absences: detail?.absences ?? b.absences ?? 0,
+        conduite: conduiteData
+          ? { ...conduiteData, note: conduiteNote }
+          : null,
         appreciation: appreciations[b.studentId] || b.appreciation || '',
+        tableauHonneur: detail?.tableauHonneur || '',
         generalAverage: b.generalAverage,
         generatedAt: b.generatedAt || new Date().toISOString(),
       });
@@ -732,51 +791,151 @@ export default function ClassesPage() {
               {/* ═══ PRÉSENCE ═════════════════════════════════════════════ */}
               {activeTab === 'attendance' && (
                 <div>
-                  <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap gap-3 items-center">
-                    <input
-                      type="date"
-                      value={attendanceDate}
-                      onChange={(e) => setAttendanceDate(e.target.value)}
-                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-teal-400"
-                    />
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => {
-                          const all: Record<string, AttendanceStatus> = {};
-                          students.forEach((s) => {
-                            all[s.id] = 'present';
-                          });
-                          setAttendance(all);
-                        }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition"
-                      >
-                        Tous présents
-                      </button>
-                      <button
-                        onClick={() => {
-                          const all: Record<string, AttendanceStatus> = {};
-                          students.forEach((s) => {
-                            all[s.id] = null;
-                          });
-                          setAttendance(all);
-                        }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
-                      >
-                        Réinitialiser
-                      </button>
+                  {/* ── Étape 1 & 2 : Sélection matière + créneau ─────────── */}
+                  <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                      1 · Sélectionner la matière
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {courses
+                        .filter((c) => c.class.id === selectedClass.id)
+                        .map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setAttCourseId(c.id === attCourseId ? null : c.id);
+                              setAttSlotId(null);
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold border transition ${
+                              attCourseId === c.id
+                                ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-teal-300'
+                            }`}
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ background: sc(c.subject.color) }}
+                            />
+                            {c.subject.name}
+                          </button>
+                        ))}
                     </div>
-                    <div className="ml-auto flex gap-2 text-xs font-semibold flex-wrap">
-                      <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">
-                        {presentCount} présents
-                      </span>
-                      <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full">
-                        {absentCount} absents
-                      </span>
-                      <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
-                        {lateCount} retards
-                      </span>
+
+                    {attCourseId && (
+                      <>
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide pt-1">
+                          2 · Sélectionner le créneau horaire
+                        </p>
+                        {loadingSlots ? (
+                          <div className="flex items-center gap-2 text-sm text-slate-400">
+                            <div className="w-4 h-4 border-2 border-teal-200 border-t-teal-500 rounded-full animate-spin" />
+                            Chargement des créneaux…
+                          </div>
+                        ) : attSlots.length === 0 ? (
+                          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            Aucun créneau trouvé pour cette matière. Vous pouvez quand même saisir la présence sans créneau.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {attSlots.map((slot) => {
+                              const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+                              return (
+                                <button
+                                  key={slot.id}
+                                  onClick={() => setAttSlotId(slot.id === attSlotId ? null : slot.id)}
+                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold border transition ${
+                                    attSlotId === slot.id
+                                      ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:border-teal-300'
+                                  }`}
+                                >
+                                  <Icon icon="fa-clock" className="text-xs" />
+                                  {days[slot.dayOfWeek] ?? `Jour ${slot.dayOfWeek}`} · {slot.startTime}–{slot.endTime}
+                                  {slot.room && (
+                                    <span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded-md text-slate-500">
+                                      {slot.room}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Date + raccourcis */}
+                    <div className="flex flex-wrap gap-3 items-center pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-slate-500 font-medium">Date :</label>
+                        <input
+                          type="date"
+                          value={attendanceDate}
+                          onChange={(e) => setAttendanceDate(e.target.value)}
+                          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-teal-400"
+                        />
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => {
+                            const all: Record<string, AttendanceStatus> = {};
+                            students.forEach((s) => { all[s.id] = 'present'; });
+                            setAttendance(all);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition"
+                        >
+                          Tous présents
+                        </button>
+                        <button
+                          onClick={() => {
+                            const all: Record<string, AttendanceStatus> = {};
+                            students.forEach((s) => { all[s.id] = null; });
+                            setAttendance(all);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+                        >
+                          Réinitialiser
+                        </button>
+                      </div>
+                      <div className="ml-auto flex gap-2 text-xs font-semibold flex-wrap">
+                        <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">
+                          {presentCount} présents
+                        </span>
+                        <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full">
+                          {absentCount} absents
+                        </span>
+                        <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
+                          {lateCount} retards
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Bandeau résumé du contexte sélectionné */}
+                  {attCourseId && (
+                    <div className="mx-5 mt-3 px-4 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-teal-800 text-sm flex items-center gap-2 flex-wrap">
+                      <Icon icon="fa-chalkboard-teacher" />
+                      <span className="font-semibold">
+                        {courses.find(c => c.id === attCourseId)?.subject.name}
+                      </span>
+                      <span className="text-teal-500">·</span>
+                      <span>{selectedClass.name}</span>
+                      {attSlotId && (
+                        <>
+                          <span className="text-teal-500">·</span>
+                          <span>
+                            {(() => {
+                              const slot = attSlots.find(s => s.id === attSlotId);
+                              const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+                              return slot ? `${days[slot.dayOfWeek]} ${slot.startTime}–${slot.endTime}` : '';
+                            })()}
+                          </span>
+                        </>
+                      )}
+                      <span className="text-teal-500">·</span>
+                      <span>{new Date(attendanceDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                    </div>
+                  )}
 
                   {attSaved && (
                     <div className="mx-5 mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm flex items-center gap-2">
@@ -784,77 +943,88 @@ export default function ClassesPage() {
                     </div>
                   )}
 
+                  {/* ── Étape 3 : Liste des élèves ─────────────────────── */}
                   {loadingStudents ? (
                     <div className="p-8 text-center">
                       <div className="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto" />
                     </div>
                   ) : (
                     <>
-                      <div className="divide-y divide-slate-50">
-                        {students.map((s, i) => (
-                          <div
-                            key={s.id}
-                            className={`px-5 py-3 flex items-center gap-3 ${
-                              i % 2 !== 0 ? 'bg-slate-50/40' : ''
-                            }`}
-                          >
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                              {s.firstName[0]}
-                              {s.lastName[0]}
-                            </div>
-                            <span className="flex-1 font-medium text-slate-800 text-sm">
-                              {s.lastName} {s.firstName}
-                            </span>
-                            <span className="text-xs text-slate-400 hidden sm:inline">
-                              {s.registrationNo}
-                            </span>
-                            <div className="flex gap-1.5">
-                              {(
-                                Object.entries(ATTENDANCE_CFG) as [
-                                  string,
-                                  { label: string; color: string; icon: string },
-                                ][]
-                              ).map(([key, cfg]) => (
-                                <button
-                                  key={key}
-                                  onClick={() =>
-                                    setAttendance((prev) => ({
-                                      ...prev,
-                                      [s.id]:
-                                        prev[s.id] === key ? null : (key as AttendanceStatus),
-                                    }))
-                                  }
-                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                                    attendance[s.id] === key
-                                      ? cfg.color
-                                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
-                                  }`}
-                                >
-                                  <Icon icon={cfg.icon as any} />
-                                  <span className="hidden md:inline">{cfg.label}</span>
-                                </button>
-                              ))}
-                            </div>
+                      {!attCourseId && (
+                        <div className="px-5 py-6 text-center text-slate-400 text-sm">
+                          <Icon icon="fa-arrow-up" className="mb-2 text-xl" />
+                          <p>Sélectionnez d'abord une matière ci-dessus</p>
+                        </div>
+                      )}
+                      {attCourseId && (
+                        <>
+                          <div className="divide-y divide-slate-50">
+                            {students.map((s, i) => (
+                              <div
+                                key={s.id}
+                                className={`px-5 py-3 flex items-center gap-3 ${
+                                  i % 2 !== 0 ? 'bg-slate-50/40' : ''
+                                }`}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                  {s.firstName[0]}
+                                  {s.lastName[0]}
+                                </div>
+                                <span className="flex-1 font-medium text-slate-800 text-sm">
+                                  {s.lastName} {s.firstName}
+                                </span>
+                                <span className="text-xs text-slate-400 hidden sm:inline">
+                                  {s.registrationNo}
+                                </span>
+                                <div className="flex gap-1.5">
+                                  {(
+                                    Object.entries(ATTENDANCE_CFG) as [
+                                      string,
+                                      { label: string; color: string; icon: string },
+                                    ][]
+                                  ).map(([key, cfg]) => (
+                                    <button
+                                      key={key}
+                                      onClick={() =>
+                                        setAttendance((prev) => ({
+                                          ...prev,
+                                          [s.id]:
+                                            prev[s.id] === key ? null : (key as AttendanceStatus),
+                                        }))
+                                      }
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                                        attendance[s.id] === key
+                                          ? cfg.color
+                                          : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <Icon icon={cfg.icon as any} />
+                                      <span className="hidden md:inline">{cfg.label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                      <div className="p-5 border-t border-slate-100 flex justify-end">
-                        <button
-                          onClick={saveAttendance}
-                          disabled={savingAtt || unmarkedCount === students.length}
-                          className="flex items-center gap-2 bg-teal-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-teal-700 transition disabled:opacity-50"
-                        >
-                          {savingAtt ? (
-                            <>
-                              <Icon icon="fa-spinner" className="fa-spin" /> Enregistrement...
-                            </>
-                          ) : (
-                            <>
-                              <Icon icon="fa-save" /> Enregistrer la présence
-                            </>
-                          )}
-                        </button>
-                      </div>
+                          <div className="p-5 border-t border-slate-100 flex justify-end">
+                            <button
+                              onClick={saveAttendance}
+                              disabled={savingAtt || unmarkedCount === students.length}
+                              className="flex items-center gap-2 bg-teal-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-teal-700 transition disabled:opacity-50"
+                            >
+                              {savingAtt ? (
+                                <>
+                                  <Icon icon="fa-spinner" className="fa-spin" /> Enregistrement...
+                                </>
+                              ) : (
+                                <>
+                                  <Icon icon="fa-save" /> Enregistrer la présence
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

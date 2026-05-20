@@ -105,7 +105,18 @@ import {
   faCookieBite,
   faBullhorn,
   faUndo,
-  faGavel
+  faGavel,
+  faSort,
+  faCamera,
+  faUser,
+  faTrashRestore,
+  faFilePdf,
+  faTrashAlt,
+  faStarHalfAlt,
+  faSmile,
+  faWallet,
+  faU,
+  faHeadset
 } from '@fortawesome/free-solid-svg-icons';
 import { faLinkedinIn } from '@fortawesome/free-brands-svg-icons/faLinkedinIn';
 
@@ -172,6 +183,17 @@ const iconMap = {
   'fa-undo':faUndo,
   'fa-chevron-up':faChevronDown,
   'fa-gavel':faGavel,
+  'fa-sort':faSort,
+  'fa-sort-up':faArrowUp,
+  'fa-sort-down':faArrowDown,
+  'fa-bars':faLayerGroup,
+  'fa-ellipsis-h':faLayerGroup,
+  'fa-ellipsis-v':faLayerGroup,
+  'fa-archive':faLayerGroup,
+  'fa-box-open':faLayerGroup,
+  'fa-calendar-plus':faCalendar,
+  'fa-user-check':faCheck,
+  'fa-camera':faCamera,
   
   // Actions
   'fa-plus': faPlus,
@@ -245,9 +267,26 @@ const iconMap = {
   'fa-expand': faExpand,
   'fa-users-solid': faUsersSolid,
   'fa-star': faStar,
+  'fa-headset':faHeadset,
+  'fa-location-dot':faMapMarkerAlt,
   'fa-mars':faMars,
   'fa-users-slash':faUserSlash,
-  'fa-venus':faVenus
+  'fa-venus':faVenus,
+  'fa-user':faUser,
+  'fa-trash-restore':faTrashRestore,
+  'fa-file-pdf':faFilePdf,
+  'fa-money-bill':faMoneyBillWave,
+  'fa-coins':faMoneyBillWave,
+  'fa-undo-alt':faUndo,
+  'fa-trash-alt':faTrashAlt,
+  'fa-spinner fa-spin':faSpinner,
+  'fa-redo':faUndo,
+  'fa-star-half-alt':faStarHalfAlt,
+  'fa-smile':faSmile,
+  'fa-question-circle':faInfoCircle,
+  'fa-wallet':faWallet,
+  'fa-user-id':faUser,
+    
 };
 
 interface IconProps {

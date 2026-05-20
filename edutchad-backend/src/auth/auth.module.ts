@@ -1,20 +1,23 @@
+// src/auth/auth.module.ts
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import 'dotenv/config'; // Pour lire JWT_SECRET
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PrismaModule } from '../prisma/prisma.module';
+
 
 @Module({
   imports: [
-    PassportModule,
+    PrismaModule,
     JwtModule.register({
-      global: true, // Le JWT est dispo partout
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '1d' }, // Le token expire après 1 jour
+      secret: process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION',
+      signOptions: { expiresIn: '8h' },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  // ✅ AuthService suffit — le guard l'injecte directement
+  providers: [AuthService, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}

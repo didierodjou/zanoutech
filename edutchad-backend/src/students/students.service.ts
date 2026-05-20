@@ -1,8 +1,20 @@
 // src/students/students.service.ts
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { Role, Period } from '@prisma/client';
+import { Role, Period, PaymentStatus } from '@prisma/client';
+
+const PERIOD_MAP: Record<number, Period> = {
+  1: Period.TRIMESTER_1,
+  2: Period.TRIMESTER_2,
+  3: Period.TRIMESTER_3,
+};
+
+const PERIOD_TO_TRIMESTER: Record<string, number> = {
+  TRIMESTER_1: 1,
+  TRIMESTER_2: 2,
+  TRIMESTER_3: 3,
+};
 
 @Injectable()
 export class StudentsService {
@@ -16,33 +28,41 @@ export class StudentsService {
     return `ETD-${year}-${number}`;
   }
 
-  // ==================== CRUD DE BASE ====================
+  // ==================== CRUD DE BASE (avec soft delete) ====================
 
   async create(data: any) {
     const hashedPassword = await bcrypt.hash('student123', 10);
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email }
+    let email = data.email;
+    if (!email || email.trim() === '') {
+      const registrationNo = data.registrationNo || (await this.generateRegistrationNo());
+      email = `${registrationNo}@edutchad.local`;
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email, isDeleted: false },
     });
 
     if (existingUser) {
       throw new ConflictException('Un utilisateur avec cet email existe déjà');
     }
 
-    const registrationNo = data.registrationNo || await this.generateRegistrationNo();
-
-    const existingStudent = await this.prisma.student.findUnique({
-      where: { registrationNo }
-    });
-
-    if (existingStudent) {
-      return this.create({ ...data, registrationNo: undefined });
+    let registrationNo = data.registrationNo;
+    if (!registrationNo) {
+      registrationNo = await this.generateRegistrationNo();
+    } else {
+      const existingStudent = await this.prisma.student.findUnique({
+        where: { registrationNo },
+      });
+      if (existingStudent) {
+        registrationNo = await this.generateRegistrationNo();
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: data.email,
+          email,
           passwordHash: hashedPassword,
           role: Role.STUDENT,
         },
@@ -56,10 +76,14 @@ export class StudentsService {
           sex: data.sex || null,
           dateOfBirth: new Date(data.dateOfBirth),
           registrationNo,
+          photo: data.photo || null,
           parentName: data.parentName,
           parentPhone: data.parentPhone,
           parentEmail: data.parentEmail || null,
           classId: data.classId || null,
+          tuitionFee: data.tuitionFee ?? null,
+          tuitionPaid: 0,
+          tuitionStatus: PaymentStatus.UNPAID,
         },
       });
 
@@ -67,30 +91,24 @@ export class StudentsService {
     });
   }
 
-  async findAll() {
+  async findAll(includeDeleted = false) {
+    const where = includeDeleted ? {} : { isDeleted: false };
     const students = await this.prisma.student.findMany({
+      where,
       include: {
-        class: {
-          select: { id: true, name: true, level: true }
-        },
-        user: {
-          select: { email: true, isActive: true, createdAt: true }
-        },
+        class: { select: { id: true, name: true, level: true } },
+        user: { select: { email: true, isActive: true, createdAt: true, isDeleted: true, deletedAt: true, deletedBy: true } },
         grades: {
-          include: {
-            subject: { select: { id: true, name: true, color: true } }
-          }
+          include: { subject: { select: { id: true, name: true, color: true } } },
         },
-        _count: {
-          select: { grades: true, absences: true, bulletins: true }
-        }
+        _count: { select: { grades: true, absences: true, bulletins: true } },
       },
-      orderBy: { lastName: 'asc' }
+      orderBy: { lastName: 'asc' },
     });
 
-    return students.map(student => ({
+    return students.map((student) => ({
       ...student,
-      averages: this.calculateAllAverages(student.grades || [])
+      averages: this.calculateAllAverages(student.grades || []),
     }));
   }
 
@@ -99,14 +117,12 @@ export class StudentsService {
       where: { id },
       include: {
         class: { select: { id: true, name: true, level: true } },
-        user: { select: { email: true, isActive: true, createdAt: true } },
+        user: { select: { email: true, isActive: true, createdAt: true, isDeleted: true, deletedAt: true, deletedBy: true } },
         grades: {
-          include: {
-            subject: { select: { id: true, name: true, color: true } }
-          }
+          include: { subject: { select: { id: true, name: true, color: true } } },
         },
-        _count: { select: { grades: true, absences: true, bulletins: true } }
-      }
+        _count: { select: { grades: true, absences: true, bulletins: true } },
+      },
     });
 
     if (!student) {
@@ -115,7 +131,7 @@ export class StudentsService {
 
     return {
       ...student,
-      averages: this.calculateAllAverages(student.grades || [])
+      averages: this.calculateAllAverages(student.grades || []),
     };
   }
 
@@ -124,19 +140,17 @@ export class StudentsService {
       where: { id },
       include: {
         class: { select: { id: true, name: true, level: true } },
-        user: { select: { email: true, createdAt: true, isActive: true } },
+        user: { select: { email: true, createdAt: true, isActive: true, isDeleted: true, deletedAt: true, deletedBy: true } },
         grades: {
           include: {
-            subject: {
-              select: { id: true, name: true, color: true, category: true, coefficient: true }
-            },
+            subject: { select: { id: true, name: true, color: true, category: true, coefficient: true } },
           },
-          orderBy: { id: 'desc' }
+          orderBy: { id: 'desc' },
         },
         absences: { orderBy: { date: 'desc' } },
         bulletins: { orderBy: { generatedAt: 'desc' } },
-        punishments: { orderBy: { date: 'desc' } }
-      }
+        punishments: { orderBy: { date: 'desc' } },
+      },
     });
 
     if (!student) {
@@ -148,10 +162,7 @@ export class StudentsService {
 
   async update(id: string, data: any) {
     const student = await this.prisma.student.findUnique({ where: { id } });
-
-    if (!student) {
-      throw new NotFoundException(`Élève avec ID ${id} non trouvé`);
-    }
+    if (!student) throw new NotFoundException(`Élève avec ID ${id} non trouvé`);
 
     return this.prisma.student.update({
       where: { id },
@@ -160,578 +171,339 @@ export class StudentsService {
         lastName: data.lastName,
         sex: data.sex || null,
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+        photo: data.photo || null,
         parentName: data.parentName,
         parentPhone: data.parentPhone,
         parentEmail: data.parentEmail,
         classId: data.classId || null,
       },
-      include: {
-        class: true,
-        user: { select: { email: true } }
-      }
+      include: { class: true, user: { select: { email: true } } },
     });
   }
 
-  async delete(id: string) {
-    const student = await this.prisma.student.findUnique({
+  // ==================== SOFT DELETE & RESTORE ====================
+
+  async softDelete(id: string, deletedBy?: string) {
+    const student = await this.prisma.student.findUnique({ where: { id } });
+    if (!student) throw new NotFoundException(`Élève ${id} non trouvé`);
+    if (student.isDeleted) throw new ConflictException(`L'élève est déjà supprimé`);
+
+    // Vérifier s'il a des données critiques (notes, absences, bulletins)
+    const hasData = await this.prisma.student.findUnique({
       where: { id },
-      include: {
-        _count: { select: { grades: true, absences: true, bulletins: true } }
-      }
+      include: { _count: { select: { grades: true, absences: true, bulletins: true } } },
     });
-
-    if (!student) {
-      throw new NotFoundException(`Élève avec ID ${id} non trouvé`);
+    if (hasData?._count.grades || hasData?._count.absences || hasData?._count.bulletins) {
+      throw new ConflictException('Impossible de supprimer un élève ayant des notes, absences ou bulletins');
     }
 
-    if (student._count.grades > 0 || student._count.absences > 0 || student._count.bulletins > 0) {
-      throw new ConflictException('Impossible de supprimer un élève qui a des notes, absences ou bulletins');
-    }
-
-    return this.prisma.$transaction([
-      this.prisma.user.delete({ where: { id: student.userId } }),
-      this.prisma.student.delete({ where: { id } })
-    ]);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: student.userId },
+        data: { isDeleted: true, deletedAt: new Date(), deletedBy: deletedBy || 'system' },
+      });
+      return tx.student.update({
+        where: { id },
+        data: { isDeleted: true, deletedAt: new Date(), deletedBy: deletedBy || 'system' },
+      });
+    });
   }
 
-  // ==================== PUNITIONS (HEURES DE COLLE) ====================
+  async restore(id: string) {
+    const student = await this.prisma.student.findUnique({ where: { id } });
+    if (!student) throw new NotFoundException(`Élève ${id} non trouvé`);
+    if (!student.isDeleted) throw new ConflictException(`L'élève n'est pas supprimé`);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: student.userId },
+        data: { isDeleted: false, deletedAt: null, deletedBy: null },
+      });
+      return tx.student.update({
+        where: { id },
+        data: { isDeleted: false, deletedAt: null, deletedBy: null },
+      });
+    });
+  }
+
+  async getDeleted() {
+    return this.prisma.student.findMany({
+      where: { isDeleted: true },
+      include: {
+        class: { select: { name: true, level: true } },
+        user: { select: { email: true, isActive: true, deletedAt: true, deletedBy: true } },
+      },
+    });
+  }
+
+  // ==================== PAIEMENTS SCOLARITÉ ====================
+
+  async getPaymentStatus(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        tuitionFee: true,
+        tuitionPaid: true,
+        tuitionStatus: true,
+        paymentDate: true,
+        paymentMethod: true,
+        paymentReference: true,
+      },
+    });
+    if (!student) throw new NotFoundException('Élève non trouvé');
+    return student;
+  }
+
+  async recordPayment(studentId: string, amount: number, method: string, reference?: string) {
+    if (amount <= 0) throw new BadRequestException('Le montant doit être supérieur à 0');
+
+    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Élève non trouvé');
+    if (student.isDeleted) throw new ConflictException('Impossible : élève supprimé');
+
+    const newPaid = (student.tuitionPaid || 0) + amount;
+    const fee = student.tuitionFee;
+    let status: PaymentStatus = PaymentStatus.UNPAID;
+    if (fee && newPaid >= fee) status = PaymentStatus.PAID;
+    else if (newPaid > 0) status = PaymentStatus.PARTIAL;
+
+    return this.prisma.student.update({
+      where: { id: studentId },
+      data: {
+        tuitionPaid: newPaid,
+        tuitionStatus: status,
+        paymentDate: new Date(),
+        paymentMethod: method,
+        paymentReference: reference || null,
+      },
+    });
+  }
+
+  async setTuitionFee(studentId: string, fee: number) {
+    if (fee < 0) throw new BadRequestException('Le montant doit être >= 0');
+    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Élève non trouvé');
+
+    let status: PaymentStatus = PaymentStatus.UNPAID;
+    if (fee === 0) status = PaymentStatus.PAID;
+    else if (student.tuitionPaid >= fee) status = PaymentStatus.PAID;
+    else if (student.tuitionPaid > 0) status = PaymentStatus.PARTIAL;
+
+    return this.prisma.student.update({
+      where: { id: studentId },
+      data: { tuitionFee: fee, tuitionStatus: status },
+    });
+  }
+
+  // ==================== PUNITIONS ====================
 
   async addPunishment(studentId: string, data: { hours: number; reason?: string; trimester: number; givenBy?: string }) {
     const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student) throw new NotFoundException(`Élève avec ID ${studentId} non trouvé`);
-
-    const punishment = await this.prisma.punishment.create({
+    if (!student) throw new NotFoundException(`Élève non trouvé`);
+    return this.prisma.punishment.create({
       data: {
         studentId,
         hours: data.hours,
         reason: data.reason || null,
         trimester: data.trimester,
         givenBy: data.givenBy || 'Système',
-        date: new Date()
-      }
+        date: new Date(),
+      },
     });
-
-    return punishment;
   }
 
   async getPunishments(studentId: string, trimester?: number) {
     return this.prisma.punishment.findMany({
-      where: {
-        studentId,
-        ...(trimester ? { trimester } : {})
-      },
-      orderBy: { date: 'desc' }
+      where: { studentId, ...(trimester ? { trimester } : {}) },
+      orderBy: { date: 'desc' },
     });
   }
 
   async deletePunishment(punishmentId: string) {
-    const punishment = await this.prisma.punishment.findUnique({ 
-      where: { id: punishmentId }
-    });
-    
-    if (!punishment) throw new NotFoundException(`Punition avec ID ${punishmentId} non trouvée`);
-    
+    const punishment = await this.prisma.punishment.findUnique({ where: { id: punishmentId } });
+    if (!punishment) throw new NotFoundException(`Punition non trouvée`);
     await this.prisma.punishment.delete({ where: { id: punishmentId } });
     return { message: 'Punition supprimée' };
   }
 
-  // ==================== GESTION CONDUITE (MANUELLE) ====================
+  // ==================== CONDUITE ====================
 
-  /**
-   * Récupère la note de conduite actuelle d'un élève pour un trimestre
-   * (uniquement la valeur manuelle stockée dans Bulletin)
-   */
-  async getConduiteNote(studentId: string, trimester: number): Promise<{ 
-    note: number | null; 
-    punishmentsHours: number;
-  }> {
-    const periodMap: Record<number, Period> = {
-      1: Period.TRIMESTRE_1,
-      2: Period.TRIMESTRE_2,
-      3: Period.TRIMESTRE_3
-    };
-    const period = periodMap[trimester];
-
-    const punishments = await this.prisma.punishment.findMany({
-      where: { studentId, trimester }
-    });
+  async getConduiteNote(studentId: string, trimester: number): Promise<{ note: number | null; punishmentsHours: number }> {
+    const punishments = await this.prisma.punishment.findMany({ where: { studentId, trimester } });
     const totalHeures = punishments.reduce((acc, p) => acc + p.hours, 0);
-
     const bulletin = await this.prisma.bulletin.findUnique({
-      where: { studentId_period: { studentId, period } }
+      where: { studentId_trimester: { studentId, trimester } },
     });
-
-    return {
-      note: bulletin?.conduiteNote ?? null,
-      punishmentsHours: totalHeures
-    };
+    return { note: bulletin?.conduiteNote ?? null, punishmentsHours: totalHeures };
   }
 
-  /**
-   * Définit manuellement la note de conduite pour un élève spécifique
-   */
   async setConduiteNote(studentId: string, trimester: number, conduiteNote: number) {
     if (conduiteNote < 0 || conduiteNote > 20) {
       throw new ConflictException('La note de conduite doit être entre 0 et 20');
     }
-
-    const periodMap: Record<number, Period> = {
-      1: Period.TRIMESTRE_1,
-      2: Period.TRIMESTRE_2,
-      3: Period.TRIMESTRE_3
-    };
-    const period = periodMap[trimester];
-
+    const period = PERIOD_MAP[trimester];
     const existing = await this.prisma.bulletin.findUnique({
-      where: { studentId_period: { studentId, period } }
+      where: { studentId_trimester: { studentId, trimester } },
     });
-
     if (existing) {
-      return this.prisma.bulletin.update({
-        where: { id: existing.id },
-        data: { conduiteNote }
-      });
+      return this.prisma.bulletin.update({ where: { id: existing.id }, data: { conduiteNote } });
     } else {
       return this.prisma.bulletin.create({
-        data: {
-          studentId,
-          period,
-          conduiteNote,
-          status: 'PENDING'
-        }
+        data: { studentId, period, trimester, conduiteNote, status: 'PENDING' },
       });
     }
   }
 
-  /**
-   * Supprime la note de conduite manuelle (revient à non défini)
-   */
   async resetConduiteNote(studentId: string, trimester: number) {
-    const periodMap: Record<number, Period> = {
-      1: Period.TRIMESTRE_1,
-      2: Period.TRIMESTRE_2,
-      3: Period.TRIMESTRE_3
-    };
-    const period = periodMap[trimester];
-
     const existing = await this.prisma.bulletin.findUnique({
-      where: { studentId_period: { studentId, period } }
+      where: { studentId_trimester: { studentId, trimester } },
     });
-
     if (existing) {
-      await this.prisma.bulletin.update({
-        where: { id: existing.id },
-        data: { conduiteNote: null }
-      });
+      await this.prisma.bulletin.update({ where: { id: existing.id }, data: { conduiteNote: null } });
     }
-
     return { message: 'Note de conduite réinitialisée' };
   }
 
-  /**
-   * Définit la même note de conduite pour tous les élèves d'une classe ou de tout l'établissement
-   */
   async setConduiteForAll(trimester: number, conduiteNote: number, classId?: string) {
     if (conduiteNote < 0 || conduiteNote > 20) {
       throw new ConflictException('La note de conduite doit être entre 0 et 20');
     }
-
-    const periodMap: Record<number, Period> = {
-      1: Period.TRIMESTRE_1,
-      2: Period.TRIMESTRE_2,
-      3: Period.TRIMESTRE_3
-    };
-    const period = periodMap[trimester];
-
-    const whereClause: any = {};
-    if (classId) {
-      whereClause.classId = classId;
-    }
-
+    const period = PERIOD_MAP[trimester];
     const students = await this.prisma.student.findMany({
-      where: whereClause,
-      select: { id: true }
+      where: classId ? { classId, isDeleted: false } : { isDeleted: false },
+      select: { id: true },
     });
-
-    const results: string[] = [];
     for (const student of students) {
       const existing = await this.prisma.bulletin.findUnique({
-        where: { studentId_period: { studentId: student.id, period } }
+        where: { studentId_trimester: { studentId: student.id, trimester } },
       });
       if (existing) {
-        await this.prisma.bulletin.update({
-          where: { id: existing.id },
-          data: { conduiteNote }
-        });
+        await this.prisma.bulletin.update({ where: { id: existing.id }, data: { conduiteNote } });
       } else {
         await this.prisma.bulletin.create({
-          data: {
-            studentId: student.id,
-            period,
-            conduiteNote,
-            status: 'PENDING'
-          }
+          data: { studentId: student.id, period, trimester, conduiteNote, status: 'PENDING' },
         });
       }
-      results.push(student.id);
     }
-
-    return { message: `Note de conduite ${conduiteNote}/20 appliquée à ${results.length} élèves`, count: results.length };
+    return { message: `Note appliquée à ${students.length} élèves`, count: students.length };
   }
 
-  // ==================== FONCTIONS DE CALCUL ====================
-
-  calculatePeriodAverage(grades: any[], period: Period): number {
-    const periodGrades = grades.filter(g => g.period === period);
-    if (periodGrades.length === 0) return 0;
-
-    let totalPoints = 0;
-    let totalCoefficients = 0;
-    periodGrades.forEach(grade => {
-      totalPoints += grade.value * (grade.coefficient || 1);
-      totalCoefficients += (grade.coefficient || 1);
-    });
-    return totalCoefficients > 0 ? Number((totalPoints / totalCoefficients).toFixed(2)) : 0;
-  }
-
-  calculateAllAverages(grades: any[]) {
-    const trimestre1 = this.calculateTrimesterAverage(grades, 1);
-    const trimestre2 = this.calculateTrimesterAverage(grades, 2);
-    const trimestre3 = this.calculateTrimesterAverage(grades, 3);
-
-    const trimestresValides = [trimestre1, trimestre2, trimestre3].filter(m => m > 0);
-    const annuelle = trimestresValides.length > 0
-      ? Number((trimestresValides.reduce((a, b) => a + b, 0) / trimestresValides.length).toFixed(2))
-      : 0;
-
-    return { trimestre1, trimestre2, trimestre3, annuelle };
-  }
-
-  calculateTrimesterAverage(grades: any[], trimester: number): number {
-    const trimesterGrades = grades.filter(g => g.trimester === trimester);
-    if (trimesterGrades.length === 0) return 0;
-
-    let totalPoints = 0;
-    let totalCoefficients = 0;
-    trimesterGrades.forEach(g => {
-      totalPoints += g.value * (g.coefficient || 1);
-      totalCoefficients += (g.coefficient || 1);
-    });
-    return totalCoefficients > 0 ? Number((totalPoints / totalCoefficients).toFixed(2)) : 0;
-  }
-
-  private getAppreciationFromValue(value: number): string {
-    if (value >= 18) return 'Excellent';
-    if (value >= 16) return 'Très bien';
-    if (value >= 14) return 'Bien';
-    if (value >= 12) return 'Assez bien';
-    if (value >= 10) return 'Passable';
-    if (value >= 8) return 'Médiocre';
-    return 'Insuffisant';
-  }
-
-  // ==================== BULLETIN PRINCIPAL ====================
+  // ==================== BULLETIN & RAPPORT (CORRIGÉ) ====================
 
   async getBulletin(studentId: string, trimester?: number) {
-    const currentTrimester = trimester || 3;
-    console.log(`📊 Génération du bulletin pour l'élève ${studentId}, trimestre: ${currentTrimester}`);
+  const student = await this.prisma.student.findUnique({
+    where: { id: studentId },
+    include: {
+      class: { select: { id: true, name: true, level: true } },
+      grades: {
+        include: {
+          subject: true,
+          control: true,
+        },
+        where: { trimester: trimester ?? 1 },
+      },
+      absences: true,
+      punishments: true,
+    },
+  });
 
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId },
-      include: {
-        class: {
-          select: {
-            id: true, name: true, level: true,
-            mainTeacher: { select: { firstName: true, lastName: true } }
-          }
-        },
-        grades: {
-          where: { trimester: currentTrimester },
-          include: {
-            subject: {
-              select: { id: true, name: true, color: true, category: true, coefficient: true }
-            }
-          },
-          orderBy: { subject: { name: 'asc' } }
-        },
-        controls: {
-          where: { trimester: currentTrimester },
-          include: {
-            subject: {
-              select: { id: true, name: true, category: true, coefficient: true }
-            }
-          }
-        },
-        absences: true,
-        punishments: { where: { trimester: currentTrimester } },
-        bulletins: {
-          where: {
-            period: currentTrimester === 1 ? 'TRIMESTRE_1'
-                  : currentTrimester === 2 ? 'TRIMESTRE_2'
-                  : 'TRIMESTRE_3' as any
-          }
-        }
-      }
-    });
+  if (!student) throw new NotFoundException(`Élève non trouvé`);
 
-    if (!student) {
-      throw new NotFoundException(`Élève avec ID ${studentId} non trouvé`);
+  const currentTrimester = trimester ?? 1;
+
+  const matieresMap = new Map();
+
+  for (const grade of student.grades) {
+    const subjectId = grade.subject.id;
+    if (!matieresMap.has(subjectId)) {
+      matieresMap.set(subjectId, {
+        id: subjectId,
+        nom: grade.subject.name,
+        coefficient: grade.subject.coefficient,
+        devoirNote: null,
+        compositionNotes: [],
+      });
     }
 
-    // ── 1. Construire la map des matières depuis les grades ──────────────────
-    const matieresMap = new Map<string, any>();
+    const entry = matieresMap.get(subjectId);
+    const controlType = grade.control?.type?.toUpperCase();
 
-    student.grades.forEach(grade => {
-      const subjectId = grade.subjectId;
-      if (!matieresMap.has(subjectId)) {
-        matieresMap.set(subjectId, {
-          id: subjectId,
-          nom: grade.subject.name,
-          category: grade.subject.category || 'LITTERAIRE',
-          coefficient: grade.subject.coefficient || 2,
-          devoirs: [],
-          interrogations: [],
-          compositions: [],
-          moyenne: grade.value,
-        });
-      } else {
-        matieresMap.get(subjectId).moyenne = grade.value;
+    if (controlType === 'DEVOIR') {
+      if (entry.devoirNote === null) {
+        entry.devoirNote = grade.value;
       }
-    });
-
-    // ── 2. Enrichir avec les détails contrôles ───────────────────────────────
-    student.controls.forEach(control => {
-      const subjectId = control.subjectId;
-
-      if (!matieresMap.has(subjectId)) {
-        matieresMap.set(subjectId, {
-          id: subjectId,
-          nom: control.subject.name,
-          category: control.subject.category || 'LITTERAIRE',
-          coefficient: control.subject.coefficient || 2,
-          devoirs: [],
-          interrogations: [],
-          compositions: [],
-          moyenne: 0,
-        });
-      }
-
-      const m = matieresMap.get(subjectId);
-      const t = control.type?.toUpperCase() || '';
-      if (t === 'COMPOSITION' || t === 'EXAMEN') {
-        m.compositions.push(control.value);
-      } else if (t === 'DEVOIR' || t === 'DS') {
-        m.devoirs.push(control.value);
-      } else if (t === 'INTERROGATION' || t === 'INTERRO') {
-        m.interrogations.push(control.value);
-      } else {
-        m.devoirs.push(control.value);
-      }
-    });
-
-    // ── 3. Calculer la moyenne finale et les colonnes devoir/composition ─────
-    const toutesMatieres: any[] = [];
-
-    matieresMap.forEach(m => {
-      if (m.devoirs.length > 0) {
-        m.devoir = Number((m.devoirs.reduce((a: number, b: number) => a + b, 0) / m.devoirs.length).toFixed(2));
-      } else {
-        m.devoir = null;
-      }
-
-      if (m.compositions.length > 0) {
-        m.composition = Number((m.compositions.reduce((a: number, b: number) => a + b, 0) / m.compositions.length).toFixed(2));
-      } else {
-        m.composition = null;
-      }
-
-      if (m.moyenne === 0 && (m.devoir !== null || m.composition !== null)) {
-        let totalNotes = 0;
-        let totalCoef = 0;
-        if (m.devoir !== null) { totalNotes += m.devoir * 2; totalCoef += 2; }
-        if (m.composition !== null) { totalNotes += m.composition * 3; totalCoef += 3; }
-        if (m.interrogations.length > 0) {
-          const interroAvg = m.interrogations.reduce((a: number, b: number) => a + b, 0) / m.interrogations.length;
-          totalNotes += interroAvg;
-          totalCoef += 1;
-        }
-        m.moyenne = totalCoef > 0 ? Number((totalNotes / totalCoef).toFixed(2)) : 0;
-      }
-
-      m.totalPoints = Number((m.moyenne * m.coefficient).toFixed(2));
-      m.appreciation = this.getAppreciationFromValue(m.moyenne);
-
-      if (m.moyenne > 0 || m.devoir !== null || m.composition !== null) {
-        toutesMatieres.push(m);
-      }
-    });
-
-    // ── 4. Séparer par catégorie ─────────────────────────────────────────────
-    const matieresLitteraires = toutesMatieres.filter(m => m.category === 'LITTERAIRE');
-    const matieresScientifiques = toutesMatieres.filter(m => m.category === 'SCIENTIFIQUE');
-
-    // ── 5. Calculer les bilans ───────────────────────────────────────────────
-    const calculerBilan = (matieres: any[]) => {
-      if (matieres.length === 0) return {
-        noteMax: 0, bilanDevoir: null, bilanComposition: null,
-        totalCoef: 0, totalPoints: 0, moyenne: 0
-      };
-
-      const noteMax = matieres.length * 20;
-      const totalCoef = matieres.reduce((acc, m) => acc + m.coefficient, 0);
-      const totalPoints = matieres.reduce((acc, m) => acc + m.totalPoints, 0);
-
-      const devoirsValides = matieres.filter(m => m.devoir !== null);
-      const compoValides = matieres.filter(m => m.composition !== null);
-
-      const bilanDevoir = devoirsValides.length > 0
-        ? Number(devoirsValides.reduce((acc, m) => acc + m.devoir, 0).toFixed(2))
-        : null;
-      const bilanComposition = compoValides.length > 0
-        ? Number(compoValides.reduce((acc, m) => acc + m.composition, 0).toFixed(2))
-        : null;
-
-      const moyenne = totalCoef > 0 ? Number((totalPoints / totalCoef).toFixed(2)) : 0;
-
-      return { noteMax, bilanDevoir, bilanComposition, totalCoef, totalPoints: Number(totalPoints.toFixed(2)), moyenne };
-    };
-
-    const bilanLitteraire = calculerBilan(matieresLitteraires);
-    const bilanScientifique = calculerBilan(matieresScientifiques);
-
-    // ── 6. Note de conduite (manuelle) ──────────────────────────────────────
-    const conduiteData = await this.getConduiteNote(studentId, currentTrimester);
-    const noteConduite = conduiteData.note ?? 0; // si non définie, on met 0 par défaut
-    const appreciationConduite = noteConduite > 0 ? this.getAppreciationFromValue(noteConduite) : 'Non évaluée';
-
-    // ── 7. Total général ─────────────────────────────────────────────────────
-    const totalCoefGeneral = bilanLitteraire.totalCoef + bilanScientifique.totalCoef + 1;
-    const totalPointsGeneral = Number(
-      (bilanLitteraire.totalPoints + bilanScientifique.totalPoints + noteConduite).toFixed(2)
-    );
-    const noteMaxTotal = bilanLitteraire.noteMax + bilanScientifique.noteMax + 20;
-
-    // ── 8. Moyenne générale ──────────────────────────────────────────────────
-    const moyenneGenerale = totalCoefGeneral > 0
-      ? Number((totalPointsGeneral / totalCoefGeneral).toFixed(2))
-      : 0;
-
-    // ── 9. Rang dans la classe ───────────────────────────────────────────────
-    const rang = await this.calculerRang(studentId, student.classId, currentTrimester);
-
-    // ── 10. Moyennes des 3 trimestres ────────────────────────────────────────
-    const allGrades = await this.prisma.grade.findMany({
-      where: { studentId },
-      include: { subject: { select: { coefficient: true } } }
-    });
-
-    const calcMoyTrimestre = (t: number) => {
-      const gs = allGrades.filter(g => g.trimester === t);
-      if (gs.length === 0) return null;
-      const totalPts = gs.reduce((acc, g) => acc + g.value * (g.coefficient || g.subject?.coefficient || 1), 0);
-      const totalCoef = gs.reduce((acc, g) => acc + (g.coefficient || g.subject?.coefficient || 1), 0);
-      return totalCoef > 0 ? Number((totalPts / totalCoef).toFixed(2)) : null;
-    };
-
-    const trimestreAverages = {
-      trimestre1: calcMoyTrimestre(1),
-      trimestre2: calcMoyTrimestre(2),
-      trimestre3: calcMoyTrimestre(3)
-    };
-
-    const moyennesValides = [
-      trimestreAverages.trimestre1,
-      trimestreAverages.trimestre2,
-      trimestreAverages.trimestre3
-    ].filter((m): m is number => m !== null && m > 0);
-
-    const annuelle = moyennesValides.length > 0
-      ? Number((moyennesValides.reduce((a, b) => a + b, 0) / moyennesValides.length).toFixed(2))
-      : moyenneGenerale;
-
-    // ── 11. Absences du trimestre ────────────────────────────────────────────
-    const totalAbsences = student.absences.filter(a => this.isAbsenceInTrimester(a, currentTrimester)).length;
-
-    // ── 12. Appréciation générale ────────────────────────────────────────────
-    let appreciationGenerale = '';
-    if (moyenneGenerale >= 16) appreciationGenerale = 'Excellent travail. Félicitations ! Tableau d\'honneur.';
-    else if (moyenneGenerale >= 14) appreciationGenerale = 'Très bon travail. Encouragement.';
-    else if (moyenneGenerale >= 12) appreciationGenerale = 'Bon travail. Continuez ainsi.';
-    else if (moyenneGenerale >= 10) appreciationGenerale = 'Assez bon travail. Peut mieux faire.';
-    else appreciationGenerale = 'Des efforts sont nécessaires.';
-
-    let tableauHonneur = '-';
-    if (moyenneGenerale >= 16) tableauHonneur = 'Félicitations';
-    else if (moyenneGenerale >= 14) tableauHonneur = 'Encouragement';
-
-    // ── 13. Résultat final ───────────────────────────────────────────────────
-    return {
-      student: {
-        firstName: student.firstName,
-        lastName: student.lastName,
-        registrationNo: student.registrationNo,
-        class: student.class
-      },
-      trimester: currentTrimester,
-      period: `TRIMESTRE_${currentTrimester}`,
-      matieres: toutesMatieres.map(m => ({
-        id: m.id,
-        nom: m.nom,
-        moyenne: m.moyenne,
-        devoir: m.devoir,
-        composition: m.composition,
-        coefficient: m.coefficient,
-        categorie: m.category,
-        appreciation: m.appreciation,
-        totalPoints: m.totalPoints
-      })),
-      bilans: {
-        litteraire: bilanLitteraire,
-        scientifique: bilanScientifique
-      },
-      moyennes: {
-        litteraire: bilanLitteraire.moyenne,
-        scientifique: bilanScientifique.moyenne,
-        generale: moyenneGenerale,
-        conduite: noteConduite
-      },
-      total: {
-        noteMax: noteMaxTotal,
-        totalCoef: totalCoefGeneral,
-        totalPoints: totalPointsGeneral
-      },
-      conduite: {
-        note: noteConduite,
-        appreciation: appreciationConduite,
-        punitions: student.punishments.map(p => ({
-          id: p.id,
-          hours: p.hours,
-          reason: p.reason,
-          date: p.date
-        })),
-        totalHeuresColle: student.punishments.reduce((acc, p) => acc + p.hours, 0),
-      },
-      trimestres: trimestreAverages,
-      annuelle,
-      rang: { position: rang.position, total: rang.total },
-      absences: totalAbsences,
-      generalAverage: moyenneGenerale,
-      appreciation: appreciationGenerale,
-      tableauHonneur,
-      generatedAt: new Date().toISOString()
-    };
+    } else if (controlType === 'COMPOSITION' || controlType === 'INTERROGATION') {
+      entry.compositionNotes.push(grade.value);
+    }
   }
 
-  // ==================== RAPPORT ====================
+  const matieres = Array.from(matieresMap.values()).map((entry) => {
+    const moyenneComposition =
+      entry.compositionNotes.length > 0
+        ? Number((entry.compositionNotes.reduce((a, b) => a + b, 0) / entry.compositionNotes.length).toFixed(2))
+        : null;
+
+    return {
+      id: entry.id,
+      nom: entry.nom,
+      coefficient: entry.coefficient,
+      moyenne: moyenneComposition,
+      devoir: entry.devoirNote,
+      composition: moyenneComposition,
+      appreciation: '', // sera rempli plus tard
+    };
+  });
+
+  const absencesCount = student.absences.filter((a) =>
+    this.isAbsenceInTrimester(a, currentTrimester)
+  ).length;
+
+  const punishments = student.punishments.filter((p) => p.trimester === currentTrimester);
+  const bulletinRecord = await this.prisma.bulletin.findUnique({
+    where: { studentId_trimester: { studentId, trimester: currentTrimester } },
+  });
+  const trimAverages = this.calculateAllAverages(student.grades);
+
+  return {
+    student: {
+      firstName: student.firstName,
+      lastName: student.lastName,
+      registrationNo: student.registrationNo,
+      class: student.class,
+    },
+    trimester: currentTrimester,
+    period: `TRIMESTER_${currentTrimester}`,
+    matieres,
+    absences: absencesCount,
+    punishments,
+    conduite: {
+      note: bulletinRecord?.conduiteNote ?? null,
+      appreciation: bulletinRecord?.appreciation ?? '',
+      totalHeuresColle: punishments.reduce((sum, p) => sum + p.hours, 0),
+    },
+    moyennes: {
+      trimestre1: trimAverages.trimestre1,
+      trimestre2: trimAverages.trimestre2,
+      trimestre3: trimAverages.trimestre3,
+      generale: trimAverages.annuelle,
+    },
+    trimestres: {
+      trimestre1: trimAverages.trimestre1,
+      trimestre2: trimAverages.trimestre2,
+      trimestre3: trimAverages.trimestre3,
+    },
+    annuelle: trimAverages.annuelle,
+    appreciation: bulletinRecord?.appreciation ?? '',
+    generatedAt: new Date().toISOString(),
+  };
+}
 
   async getStudentReport(studentId: string, period: Period) {
-    let trimester = 3;
-    if (period === 'TRIMESTRE_1') trimester = 1;
-    else if (period === 'TRIMESTRE_2') trimester = 2;
+    const trimester = PERIOD_TO_TRIMESTER[period] ?? 3;
     return this.getBulletin(studentId, trimester);
   }
 
-  // ==================== HELPERS PRIVÉS ====================
+  // ==================== HELPERS ====================
 
   private isAbsenceInTrimester(absence: any, trimester: number): boolean {
     const date = new Date(absence.date);
@@ -746,31 +518,54 @@ export class StudentsService {
 
   private async calculerRang(studentId: string, classId: string | null, trimester?: number) {
     if (!classId) return { position: 0, total: 0 };
-
     const students = await this.prisma.student.findMany({
       where: { classId },
-      include: {
-        grades: trimester ? { where: { trimester } } : true
-      }
+      include: { grades: trimester ? { where: { trimester } } : true },
     });
-
-    const averages = students.map(s => {
+    const averages = students.map((s) => {
       const grades = s.grades || [];
       if (grades.length === 0) return { studentId: s.id, average: 0 };
-      const totalPoints = grades.reduce((acc, g) => acc + (g.value * (g.coefficient || 1)), 0);
+      const totalPoints = grades.reduce((acc, g) => acc + g.value * (g.coefficient || 1), 0);
       const totalCoef = grades.reduce((acc, g) => acc + (g.coefficient || 1), 0);
       return { studentId: s.id, average: totalCoef > 0 ? totalPoints / totalCoef : 0 };
     }).sort((a, b) => b.average - a.average);
-
-    const position = averages.findIndex(s => s.studentId === studentId) + 1;
+    const position = averages.findIndex((s) => s.studentId === studentId) + 1;
     return { position, total: students.length };
   }
 
-  calculateSubjectAverages(grades: any[], period: Period) {
-    const periodGrades = grades.filter(g => g.period === period);
-    const subjectsMap = new Map();
+  calculatePeriodAverage(grades: any[], period: Period): number {
+    const periodGrades = grades.filter((g) => g.period === period);
+    if (periodGrades.length === 0) return 0;
+    const totalPoints = periodGrades.reduce((acc, g) => acc + g.value * (g.coefficient || 1), 0);
+    const totalCoef = periodGrades.reduce((acc, g) => acc + (g.coefficient || 1), 0);
+    return totalCoef > 0 ? Number((totalPoints / totalCoef).toFixed(2)) : 0;
+  }
 
-    periodGrades.forEach(grade => {
+  calculateTrimesterAverage(grades: any[], trimester: number): number {
+    const trimGrades = grades.filter((g) => g.trimester === trimester);
+    if (trimGrades.length === 0) return 0;
+    const totalPoints = trimGrades.reduce((acc, g) => acc + g.value * (g.coefficient || 1), 0);
+    const totalCoef = trimGrades.reduce((acc, g) => acc + (g.coefficient || 1), 0);
+    return totalCoef > 0 ? Number((totalPoints / totalCoef).toFixed(2)) : 0;
+  }
+
+  calculateAllAverages(grades: any[]) {
+    return {
+      trimestre1: this.calculateTrimesterAverage(grades, 1),
+      trimestre2: this.calculateTrimesterAverage(grades, 2),
+      trimestre3: this.calculateTrimesterAverage(grades, 3),
+      annuelle:
+        (this.calculateTrimesterAverage(grades, 1) +
+          this.calculateTrimesterAverage(grades, 2) +
+          this.calculateTrimesterAverage(grades, 3)) /
+        3,
+    };
+  }
+
+  calculateSubjectAverages(grades: any[], period: Period) {
+    const periodGrades = grades.filter((g) => g.period === period);
+    const subjectsMap = new Map();
+    periodGrades.forEach((grade) => {
       if (grade.subject) {
         const subjectId = grade.subject.id;
         if (!subjectsMap.has(subjectId)) {
@@ -780,27 +575,24 @@ export class StudentsService {
             color: grade.subject.color || '#3498db',
             grades: [],
             totalPoints: 0,
-            totalCoefficients: 0
+            totalCoefficients: 0,
           });
         }
         const sd = subjectsMap.get(subjectId);
         sd.grades.push(grade.value);
         sd.totalPoints += grade.value * (grade.coefficient || 1);
-        sd.totalCoefficients += (grade.coefficient || 1);
+        sd.totalCoefficients += grade.coefficient || 1;
       }
     });
-
     const result: any[] = [];
-    subjectsMap.forEach(data => {
+    subjectsMap.forEach((data) => {
       result.push({
         subjectId: data.subjectId,
         subject: data.subject,
         color: data.color,
-        average: data.totalCoefficients > 0
-          ? Number((data.totalPoints / data.totalCoefficients).toFixed(2))
-          : 0,
+        average: data.totalCoefficients > 0 ? Number((data.totalPoints / data.totalCoefficients).toFixed(2)) : 0,
         grades: data.grades,
-        coefficient: data.totalCoefficients / data.grades.length
+        coefficient: data.totalCoefficients / data.grades.length,
       });
     });
     return result;

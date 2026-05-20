@@ -104,7 +104,62 @@ const getCycle = (level?: string | null): { label: string; sup: string } => {
   return { label: 'CYCLE', sup: '2nde' };
 };
 
-// ─── Composant ────────────────────────────────────────────────────────────────
+/** Calcule l'année scolaire réelle basée sur la date actuelle */
+const getSchoolYear = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0 = Janvier, 8 = Septembre
+  
+  // Si on est entre septembre et décembre, l'année scolaire est year-year+1
+  // Si on est entre janvier et août, l'année scolaire est year-1-year
+  if (month >= 8) { // Septembre et après
+    return `${year}-${year + 1}`;
+  } else {
+    return `${year - 1}-${year}`;
+  }
+};
+
+// ─── Composant Cachet Directeur ───────────────────────────────────────────────
+
+const DirectorStamp = () => (
+  <div className="absolute -top-8 -right-4 opacity-80 pointer-events-none transform rotate-[-12deg]">
+    <svg width="140" height="140" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      {/* Cercle extérieur */}
+      <circle cx="100" cy="100" r="95" fill="none" stroke="#1e40af" strokeWidth="3" strokeDasharray="4,2" opacity="0.9" />
+      <circle cx="100" cy="100" r="88" fill="none" stroke="#1e40af" strokeWidth="1.5" opacity="0.7" />
+      
+      {/* Texte circulaire supérieur */}
+      <path id="circlePathTop" d="M 30,100 A 70,70 0 0,1 170,100" fill="none" />
+      <text fill="#1e40af" fontSize="14" fontWeight="bold" letterSpacing="3">
+        <textPath href="#circlePathTop" startOffset="50%" textAnchor="middle">
+          ZANOUTECH
+        </textPath>
+      </text>
+      
+      {/* Texte circulaire inférieur */}
+      <path id="circlePathBottom" d="M 30,100 A 70,70 0 0,0 170,100" fill="none" />
+      <text fill="#1e40af" fontSize="13" fontWeight="bold" letterSpacing="2">
+        <textPath href="#circlePathBottom" startOffset="50%" textAnchor="middle">
+          INOVATION HUB
+        </textPath>
+      </text>
+      
+      {/* Étoiles */}
+      <text x="35" y="105" fill="#1e40af" fontSize="16">★</text>
+      <text x="150" y="105" fill="#1e40af" fontSize="16">★</text>
+      
+      {/* Texte central */}
+      <text x="100" y="88" fill="#1e40af" fontSize="18" fontWeight="bold" textAnchor="middle">LE</text>
+      <text x="100" y="115" fill="#1e40af" fontSize="16" fontWeight="bold" textAnchor="middle">Responsable</text>
+      
+      {/* Ligne de signature */}
+      <path d="M 60,130 Q 100,125 140,132" fill="none" stroke="#1e40af" strokeWidth="1.5" opacity="0.6" />
+      <path d="M 70,135 Q 100,128 130,138" fill="none" stroke="#1e40af" strokeWidth="1" opacity="0.4" />
+    </svg>
+  </div>
+);
+
+// ─── Composant Principal ──────────────────────────────────────────────────────
 
 export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }: BulletinProps) {
   const [loading, setLoading] = useState(true);
@@ -152,7 +207,13 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
     const bilanSci: BilanSection = d.bilans?.scientifique ?? calcBilan(scientifiques);
 
     // ── Note de conduite ────────────────────────────────────────────────────
-    const conduiteNote: number | null = d.conduite?.note ?? d.moyennes?.conduite ?? null;
+    // Priorité : conduite.manualNote > conduite.note > conduite.noteAutoCalculee > moyennes.conduite
+    const conduiteNote: number | null =
+      d.conduite?.manualNote ??
+      d.conduite?.note ??
+      d.conduite?.noteAutoCalculee ??
+      d.moyennes?.conduite ??
+      null;
 
     // ── Total général ───────────────────────────────────────────────────────
     const totalCoef = bilanLitt.totalCoef + bilanSci.totalCoef + 1; // +1 conduite
@@ -205,7 +266,7 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white p-8 rounded-xl flex items-center gap-3">
-          <Icon icon="fa-spinner" className="fa-spin text-blue-600 text-2xl" />
+          <Icon icon="fa-spinner" className="fa-spin text-green-700 text-2xl" />
           <span className="text-gray-700">Chargement du bulletin...</span>
         </div>
       </div>
@@ -233,6 +294,7 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
   const currentTrimester = bulletinData.trimester || 3;
   const trimesterName: Record<number, string> = { 1: '1er', 2: '2e', 3: '3e' };
   const cycle = getCycle(student?.class?.level);
+  const schoolYear = getSchoolYear();
 
   const hasTableauHonneur = (bulletinData.tableauHonneur ?? '').toLowerCase().includes('félicitations');
   const hasEncouragement = (bulletinData.tableauHonneur ?? '').toLowerCase().includes('encouragement');
@@ -240,16 +302,16 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
   // ── JSX ────────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 overflow-y-auto">
-      <div className="bg-white rounded-lg w-full max-w-5xl shadow-2xl max-h-[98vh] overflow-y-auto">
+      <div className="bg-green-900 rounded-lg w-full max-w-5xl shadow-2xl max-h-[98vh] overflow-y-auto">
 
         {/* Barre de contrôle (cachée à l'impression) */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-700 to-blue-900 p-3 flex justify-between items-center z-10 print:hidden">
+        <div className="sticky top-0 bg-gradient-to-r from-green-800 to-green-950 p-3 flex justify-between items-center z-10 print:hidden">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Icon icon="fa-file-alt" />
             Bulletin — {student?.firstName} {student?.lastName}
           </h3>
           <div className="flex gap-2">
-            <button onClick={onPrint} className="px-3 py-1.5 bg-white text-blue-900 rounded-lg hover:bg-gray-100 flex items-center gap-1.5 text-sm font-medium">
+            <button onClick={onPrint} className="px-3 py-1.5 bg-white text-green-900 rounded-lg hover:bg-gray-100 flex items-center gap-1.5 text-sm font-medium">
               <Icon icon="fa-print" /> Imprimer
             </button>
             <button onClick={onDownload} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1.5 text-sm font-medium">
@@ -262,14 +324,14 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
         </div>
 
         {/* ══ CONTENU DU BULLETIN ══════════════════════════════════════════════ */}
-        <div className="p-4 bg-white text-[11px]" id="bulletin-print">
+        <div className="p-4 bg-green-900 text-[11px]" id="bulletin-print">
 
           {/* ── En-tête officiel ─────────────────────────────────────────── */}
-          <div className="border-2 border-gray-800 p-3 mb-3">
+          <div className="border-2 border-green-700 p-3 mb-3 bg-green-50">
             <div className="flex justify-between items-start gap-2">
 
               {/* Partie française */}
-              <div className="flex-1 text-[10px] leading-4">
+              <div className="flex-1 text-[10px] leading-4 text-green-950">
                 <p className="font-bold uppercase tracking-wide">République du Tchad</p>
                 <p className="font-semibold">Unité - Travail - Progrès</p>
                 <p className="font-bold mt-1">Ministère de l'Education Nationale</p>
@@ -281,14 +343,14 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
 
               {/* Logo cycle */}
               <div className="flex flex-col items-center justify-center px-4">
-                <div className="w-20 h-20 border-2 border-gray-800 rounded-full flex flex-col items-center justify-center bg-gray-50">
-                  <span className="text-sm font-bold leading-none">{cycle.sup}</span>
-                  <span className="text-xs font-bold">{cycle.label}</span>
+                <div className="w-20 h-20 border-2 border-green-800 rounded-full flex flex-col items-center justify-center bg-green-100">
+                  <span className="text-sm font-bold leading-none text-green-900">{cycle.sup}</span>
+                  <span className="text-xs font-bold text-green-800">{cycle.label}</span>
                 </div>
               </div>
 
               {/* Partie arabe */}
-              <div className="flex-1 text-[10px] leading-4 text-right" dir="rtl">
+              <div className="flex-1 text-[10px] leading-4 text-right text-green-950" dir="rtl">
                 <p className="font-bold">جمهورية تشاد</p>
                 <p>وحدة - عمل - تقدم</p>
                 <p className="font-bold mt-1">وزارة التربية الوطنية</p>
@@ -300,186 +362,186 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
             </div>
 
             {/* Nom de l'école */}
-            <div className="text-center border-t border-b border-gray-400 py-2 my-2">
-              <p className="text-sm font-bold text-blue-900">«COMPLEXE SCOLAIRE IBNOU MAHADJIR»</p>
-              <p className="text-[10px] italic text-gray-700">" Bien former pour un meilleur résultat "</p>
-              <p className="text-[10px] text-gray-600">Tél : 95 91 90 10 / 99 49 14 49 / 66 21 15 78 — Quartier REPOS III. Face Bouta Cochon</p>
+            <div className="text-center border-t border-b border-green-400 py-2 my-2">
+              <p className="text-sm font-bold text-green-900">«COMPLEXE SCOLAIRE IBNOU MAHADJIR»</p>
+              <p className="text-[10px] italic text-green-800">" Bien former pour un meilleur résultat "</p>
+              <p className="text-[10px] text-green-700">Tél : 95 91 90 10 / 99 49 14 49 / 66 21 15 78 — Quartier REPOS III. Face Bouta Cochon</p>
             </div>
 
             {/* Ligne titre / année */}
             <div className="flex justify-between items-center">
-              <p className="text-[10px]">Année Scolaire : <strong>2024-2025</strong></p>
-              <h2 className="text-base font-bold text-blue-900 underline underline-offset-2">
+              <p className="text-[10px] text-green-950">Année Scolaire : <strong>{schoolYear}</strong></p>
+              <h2 className="text-base font-bold text-green-900 underline underline-offset-2">
                 Bulletin de Notes du {trimesterName[currentTrimester]} Trimestre
               </h2>
-              <p className="text-[10px]" dir="rtl">
+              <p className="text-[10px] text-green-950" dir="rtl">
                 كشف الدرجات الفترة {currentTrimester === 1 ? 'الأولى' : currentTrimester === 2 ? 'الثانية' : 'الثالثة'}
               </p>
             </div>
           </div>
 
           {/* ── Informations élève ───────────────────────────────────────── */}
-          <div className="border-2 border-gray-800 p-2 mb-3 bg-gray-50">
+          <div className="border-2 border-green-700 p-2 mb-3 bg-green-50">
             <div className="flex gap-6">
               <div className="flex items-center gap-2 flex-1">
-                <span className="font-bold w-28 shrink-0">Nom de l'élève :</span>
-                <span className="border-b-2 border-gray-800 flex-1 font-bold text-sm text-blue-900 px-1">
+                <span className="font-bold w-28 shrink-0 text-green-950">Nom de l'élève :</span>
+                <span className="border-b-2 border-green-800 flex-1 font-bold text-sm text-green-900 px-1">
                   {student?.lastName?.toUpperCase()} {student?.firstName}
                 </span>
-                <span className="text-[10px] text-gray-500 ml-2" dir="rtl">اسم الطالب</span>
+                <span className="text-[10px] text-green-700 ml-2" dir="rtl">اسم الطالب</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-bold w-20 shrink-0">Matricule :</span>
-                <span className="border-b-2 border-gray-800 font-mono px-1">{student?.registrationNo}</span>
+                <span className="font-bold w-20 shrink-0 text-green-950">Matricule :</span>
+                <span className="border-b-2 border-green-800 font-mono px-1 text-green-900">{student?.registrationNo}</span>
               </div>
             </div>
             <div className="flex gap-6 mt-1">
               <div className="flex items-center gap-2 flex-1">
-                <span className="font-bold w-28 shrink-0">Classe de :</span>
-                <span className="border-b-2 border-gray-800 flex-1 font-bold text-sm text-blue-900 px-1 text-center">
+                <span className="font-bold w-28 shrink-0 text-green-950">Classe de :</span>
+                <span className="border-b-2 border-green-800 flex-1 font-bold text-sm text-green-900 px-1 text-center">
                   {student?.class?.name || ''}
                 </span>
-                <span className="text-[10px] text-gray-500 ml-2" dir="rtl">الصف</span>
+                <span className="text-[10px] text-green-700 ml-2" dir="rtl">الصف</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-bold w-20 shrink-0">Effectif :</span>
-                <span className="border-b-2 border-gray-800 px-1">{rang?.total ?? '-'} élèves</span>
+                <span className="font-bold w-20 shrink-0 text-green-950">Effectif :</span>
+                <span className="border-b-2 border-green-800 px-1 text-green-900">{rang?.total ?? '-'} élèves</span>
               </div>
             </div>
           </div>
 
           {/* ── Tableau des notes ────────────────────────────────────────── */}
           <div className="mb-3">
-            <table className="w-full border-collapse border-2 border-gray-800 text-[10px]">
+            <table className="w-full border-collapse border-2 border-green-800 text-[10px]">
               <thead>
-                <tr className="bg-blue-100">
-                  <th className="border-2 border-gray-800 p-1.5 text-left w-1/4">MATIÈRES</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Note<br/>max</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Moy.<br/>devoir</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Moy.<br/>compo</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Moyenne<br/>Générale</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Coef</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center">Moy.<br/>G×Coef</th>
-                  <th className="border-2 border-gray-800 p-1.5 text-center w-1/6">App. du<br/>Professeur</th>
+                <tr className="bg-green-200">
+                  <th className="border-2 border-green-800 p-1.5 text-left w-1/4 text-green-950">MATIÈRES</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Note<br/>max</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Moy.<br/>devoir</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Moy.<br/>compo</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Moyenne<br/>Générale</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Coef</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center text-green-950">Moy.<br/>G×Coef</th>
+                  <th className="border-2 border-green-800 p-1.5 text-center w-1/6 text-green-950">App. du<br/>Professeur</th>
                 </tr>
               </thead>
               <tbody>
 
                 {/* ── SECTION LITTÉRAIRE ── */}
                 {litteraires.map((m: Matiere, i: number) => (
-                  <tr key={`lit-${i}`} className="hover:bg-yellow-50">
-                    <td className="border border-gray-500 p-1.5 font-medium">{m.nom}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">20</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{fmt(m.devoir)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{fmt(m.composition)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center font-bold text-blue-700">{fmt(m.moyenne)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{m.coefficient}</td>
-                    <td className="border border-gray-500 p-1.5 text-center font-bold text-green-700">
+                  <tr key={`lit-${i}`} className="hover:bg-green-100 bg-green-50/50">
+                    <td className="border border-green-600 p-1.5 font-medium text-green-950">{m.nom}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">20</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{fmt(m.devoir)}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{fmt(m.composition)}</td>
+                    <td className="border border-green-600 p-1.5 text-center font-bold text-green-800">{fmt(m.moyenne)}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{m.coefficient}</td>
+                    <td className="border border-green-600 p-1.5 text-center font-bold text-green-700">
                       {fmt(m.moyenne != null ? m.moyenne * m.coefficient : null)}
                     </td>
-                    <td className="border border-gray-500 p-1.5 text-center italic text-gray-600">{m.appreciation || '-'}</td>
+                    <td className="border border-green-600 p-1.5 text-center italic text-green-800">{m.appreciation || '-'}</td>
                   </tr>
                 ))}
 
                 {/* Bilan Littéraire */}
-                <tr className="bg-yellow-100 font-bold">
-                  <td className="border-2 border-gray-800 p-1.5 pl-4">Bilan littéraire</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{bilanLitt.noteMax}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{fmt(bilanLitt.bilanDevoir)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{fmt(bilanLitt.bilanComposition)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{bilanLitt.totalCoef}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center text-blue-800">{fmt(bilanLitt.totalPoints)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
+                <tr className="bg-green-200 font-bold">
+                  <td className="border-2 border-green-800 p-1.5 pl-4 text-green-950">Bilan littéraire</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{bilanLitt.noteMax}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{fmt(bilanLitt.bilanDevoir)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{fmt(bilanLitt.bilanComposition)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{bilanLitt.totalCoef}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-800">{fmt(bilanLitt.totalPoints)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
                 </tr>
 
                 {/* Moy. Littéraire */}
-                <tr className="bg-yellow-50 font-bold">
-                  <td className="border-2 border-gray-800 p-1.5 pl-4">Moy. littéraire</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center text-blue-800 text-sm">{fmt(moyLitt)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
+                <tr className="bg-green-100 font-bold">
+                  <td className="border-2 border-green-800 p-1.5 pl-4 text-green-950">Moy. littéraire</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-800 text-sm">{fmt(moyLitt)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
                 </tr>
 
                 {/* ── SECTION SCIENTIFIQUE ── */}
                 {scientifiques.map((m: Matiere, i: number) => (
-                  <tr key={`sci-${i}`} className="hover:bg-green-50">
-                    <td className="border border-gray-500 p-1.5 font-medium">{m.nom}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">20</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{fmt(m.devoir)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{fmt(m.composition)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center font-bold text-blue-700">{fmt(m.moyenne)}</td>
-                    <td className="border border-gray-500 p-1.5 text-center">{m.coefficient}</td>
-                    <td className="border border-gray-500 p-1.5 text-center font-bold text-green-700">
+                  <tr key={`sci-${i}`} className="hover:bg-green-100 bg-green-50/50">
+                    <td className="border border-green-600 p-1.5 font-medium text-green-950">{m.nom}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">20</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{fmt(m.devoir)}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{fmt(m.composition)}</td>
+                    <td className="border border-green-600 p-1.5 text-center font-bold text-green-800">{fmt(m.moyenne)}</td>
+                    <td className="border border-green-600 p-1.5 text-center text-green-900">{m.coefficient}</td>
+                    <td className="border border-green-600 p-1.5 text-center font-bold text-green-700">
                       {fmt(m.moyenne != null ? m.moyenne * m.coefficient : null)}
                     </td>
-                    <td className="border border-gray-500 p-1.5 text-center italic text-gray-600">{m.appreciation || '-'}</td>
+                    <td className="border border-green-600 p-1.5 text-center italic text-green-800">{m.appreciation || '-'}</td>
                   </tr>
                 ))}
 
                 {/* Bilan Scientifique */}
-                <tr className="bg-green-100 font-bold">
-                  <td className="border-2 border-gray-800 p-1.5 pl-4">Bilan scientifique</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{bilanSci.noteMax}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{fmt(bilanSci.bilanDevoir)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{fmt(bilanSci.bilanComposition)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{bilanSci.totalCoef}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center text-blue-800">{fmt(bilanSci.totalPoints)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
+                <tr className="bg-green-200 font-bold">
+                  <td className="border-2 border-green-800 p-1.5 pl-4 text-green-950">Bilan scientifique</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{bilanSci.noteMax}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{fmt(bilanSci.bilanDevoir)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{fmt(bilanSci.bilanComposition)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{bilanSci.totalCoef}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-800">{fmt(bilanSci.totalPoints)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
                 </tr>
 
                 {/* Moy. Scientifique */}
-                <tr className="bg-green-50 font-bold">
-                  <td className="border-2 border-gray-800 p-1.5 pl-4">Moy. scientifique</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center text-blue-800 text-sm">{fmt(moyScient)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
+                <tr className="bg-green-100 font-bold">
+                  <td className="border-2 border-green-800 p-1.5 pl-4 text-green-950">Moy. scientifique</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-800 text-sm">{fmt(moyScient)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
                 </tr>
 
                 {/* ── CONDUITE ── */}
-                <tr className="hover:bg-purple-50">
-                  <td className="border border-gray-500 p-1.5 font-medium">
+                <tr className="hover:bg-green-100 bg-green-50/50">
+                  <td className="border border-green-600 p-1.5 font-medium text-green-950">
                     Conduite
                     {conduite?.autoCalculated === false && (
-                      <span className="ml-1 text-[8px] bg-blue-100 text-blue-700 px-1 rounded">Manuel</span>
+                      <span className="ml-1 text-[8px] bg-green-200 text-green-800 px-1 rounded">Manuel</span>
                     )}
                   </td>
-                  <td className="border border-gray-500 p-1.5 text-center">20</td>
-                  <td className="border border-gray-500 p-1.5 text-center">-</td>
-                  <td className="border border-gray-500 p-1.5 text-center">-</td>
-                  <td className="border border-gray-500 p-1.5 text-center font-bold text-blue-700">
+                  <td className="border border-green-600 p-1.5 text-center text-green-900">20</td>
+                  <td className="border border-green-600 p-1.5 text-center text-green-900">-</td>
+                  <td className="border border-green-600 p-1.5 text-center text-green-900">-</td>
+                  <td className="border border-green-600 p-1.5 text-center font-bold text-green-800">
                     {conduiteNote !== null ? fmt(conduiteNote) : (
-                      <span className="text-orange-500 italic">À saisir</span>
+                      <span className="text-orange-600 italic">À saisir</span>
                     )}
                   </td>
-                  <td className="border border-gray-500 p-1.5 text-center">1</td>
-                  <td className="border border-gray-500 p-1.5 text-center font-bold text-green-700">
+                  <td className="border border-green-600 p-1.5 text-center text-green-900">1</td>
+                  <td className="border border-green-600 p-1.5 text-center font-bold text-green-700">
                     {conduiteNote !== null ? fmt(conduiteNote * 1) : '-'}
                   </td>
-                  <td className="border border-gray-500 p-1.5 text-center italic text-gray-600">
+                  <td className="border border-green-600 p-1.5 text-center italic text-green-800">
                     {conduite?.appreciation || 'Le Conseil'}
                   </td>
                 </tr>
 
                 {/* ── TOTAL ── */}
-                <tr className="bg-blue-200 font-bold text-sm">
-                  <td className="border-2 border-gray-800 p-1.5">TOTAL</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{noteMaxTotal}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">{totalCoef}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center text-blue-900">{fmt(totalPoints)}</td>
-                  <td className="border-2 border-gray-800 p-1.5 text-center">-</td>
+                <tr className="bg-green-300 font-bold text-sm">
+                  <td className="border-2 border-green-800 p-1.5 text-green-950">TOTAL</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{noteMaxTotal}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{totalCoef}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">{fmt(totalPoints)}</td>
+                  <td className="border-2 border-green-800 p-1.5 text-center text-green-900">-</td>
                 </tr>
 
               </tbody>
@@ -487,49 +549,49 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
           </div>
 
           {/* ── Section inférieure (3 colonnes) ─────────────────────────── */}
-          <div className="border-2 border-gray-800">
-            <div className="grid grid-cols-3 divide-x-2 divide-gray-800">
+          <div className="border-2 border-green-800 bg-green-50">
+            <div className="grid grid-cols-3 divide-x-2 divide-green-800">
 
               {/* Col 1 : Résultats */}
-              <div className="p-2 space-y-1 bg-gray-50">
-                <h4 className="font-bold text-blue-900 border-b border-gray-400 pb-1 mb-2">RÉSULTATS</h4>
+              <div className="p-2 space-y-1 bg-green-50">
+                <h4 className="font-bold text-green-900 border-b border-green-400 pb-1 mb-2">RÉSULTATS</h4>
 
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-[10px] text-green-950">
                   <span>Moy. du 1er Trimestre :</span>
-                  <span className="font-bold">
+                  <span className="font-bold text-green-900">
                     {trimestres?.trimestre1 ? fmt(trimestres.trimestre1) : '-'}/20
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-[10px] text-green-950">
                   <span>Moy. du 2e Trimestre :</span>
-                  <span className="font-bold">
+                  <span className="font-bold text-green-900">
                     {trimestres?.trimestre2 ? fmt(trimestres.trimestre2) : '-'}/20
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-[10px] text-green-950">
                   <span>Moy. du 3e Trimestre :</span>
-                  <span className="font-bold text-blue-700">
+                  <span className="font-bold text-green-800">
                     {trimestres?.trimestre3 ? fmt(trimestres.trimestre3) : fmt(bulletinData.moyennes?.generale)}/20
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px] border-t border-gray-300 pt-1 mt-1">
-                  <span className="font-bold text-purple-700">Moyenne annuelle :</span>
-                  <span className="font-bold text-purple-700 text-sm">
+                <div className="flex justify-between text-[10px] border-t border-green-300 pt-1 mt-1">
+                  <span className="font-bold text-green-900">Moyenne annuelle :</span>
+                  <span className="font-bold text-green-900 text-sm">
                     {annuelle ? fmt(annuelle) : fmt(bulletinData.moyennes?.generale)}/20
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-[10px] text-green-950">
                   <span>Rang :</span>
-                  <span className="font-bold">
+                  <span className="font-bold text-green-900">
                     {rang?.position
                       ? <>{rang.position}<sup>e</sup> / {rang.total} élèves</>
                       : '-'
                     }
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
+                <div className="flex justify-between text-[10px] text-green-950">
                   <span>Absences :</span>
-                  <span className="font-bold text-red-600">{absences || 0} jours</span>
+                  <span className="font-bold text-red-700">{absences || 0} jours</span>
                 </div>
 
                 {/* Info punitions et conduite */}
@@ -546,7 +608,7 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
                       </div>
                     )}
                     {conduite?.manualNote !== null && conduite?.manualNote !== undefined && (
-                      <div className="flex justify-between text-[10px] text-blue-700">
+                      <div className="flex justify-between text-[10px] text-green-800">
                         <span>Note conduite (Directeur) :</span>
                         <span className="font-bold">{fmt(conduite.manualNote)}/20</span>
                       </div>
@@ -556,54 +618,54 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
               </div>
 
               {/* Col 2 : Distinctions & Sanctions */}
-              <div className="p-2 bg-white">
-                <h4 className="font-bold text-green-700 mb-1">Distinctions Particulières</h4>
-                <div className="space-y-0.5 text-[10px] mb-3">
+              <div className="p-2 bg-green-50">
+                <h4 className="font-bold text-green-800 mb-1">Distinctions Particulières</h4>
+                <div className="space-y-0.5 text-[10px] mb-3 text-green-950">
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly
                            checked={hasTableauHonneur} />
                     <span>Félicitations</span>
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly
                            checked={hasEncouragement} />
                     <span>Encouragement</span>
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly
                            checked={hasTableauHonneur} />
                     <span>Tableau d'honneur</span>
                   </label>
                 </div>
 
                 <h4 className="font-bold text-red-700 mb-1">Sanctions :</h4>
-                <div className="space-y-0.5 text-[10px]">
+                <div className="space-y-0.5 text-[10px] text-green-950">
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly />
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly />
                     <span>Avertissement de Travail</span>
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly />
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly />
                     <span>Avertissement de Conduite</span>
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly />
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly />
                     <span>Blâme de Travail</span>
                   </label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" className="w-3 h-3 border border-gray-600" readOnly />
+                    <input type="checkbox" className="w-3 h-3 border border-green-600 accent-green-700" readOnly />
                     <span>Blâme de Conduite</span>
                   </label>
                 </div>
               </div>
 
-              {/* Col 3 : Appréciations + Signature */}
-              <div className="p-2 bg-gray-50">
-                <h4 className="font-bold text-blue-900 mb-1">Appréciations du Professeur Principal</h4>
-                <div className="border border-gray-400 min-h-[60px] p-1.5 bg-white mb-2 rounded text-[10px] italic text-gray-800">
+              {/* Col 3 : Appréciations + Signature + Cachet */}
+              <div className="p-2 bg-green-50 relative">
+                <h4 className="font-bold text-green-900 mb-1">Appréciations du Professeur Principal</h4>
+                <div className="border border-green-400 min-h-[60px] p-1.5 bg-white mb-2 rounded text-[10px] italic text-green-950">
                   {appreciation || ''}
                 </div>
-                <div className="border border-gray-400 min-h-[28px] p-1.5 bg-white rounded text-[10px] font-medium text-center text-gray-800">
+                <div className="border border-green-400 min-h-[28px] p-1.5 bg-white rounded text-[10px] font-medium text-center text-green-950">
                   {appreciation?.toLowerCase().includes('baccalauréat')
                     ? 'Admis au Baccalauréat'
                     : appreciation?.toLowerCase().includes('admis')
@@ -611,17 +673,20 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
                       : ''}
                 </div>
 
-                <div className="mt-2 pt-1 border-t border-gray-400 text-[10px]">
-                  <p className="text-gray-600">
+                <div className="mt-2 pt-1 border-t border-green-400 text-[10px] relative">
+                  <p className="text-green-800">
                     Fait à N'Djamena, le{' '}
-                    <span className="font-bold">
+                    <span className="font-bold text-green-950">
                       {generatedAt
                         ? new Date(generatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
                         : new Date().toLocaleDateString('fr-FR')}
                     </span>
                   </p>
-                  <p className="font-bold text-center mt-2">Visa du Proviseur</p>
-                  <div className="h-10 border-b border-gray-400 mt-1"></div>
+                  <p className="font-bold text-center mt-2 text-green-950">Visa du Proviseur</p>
+                  <div className="h-10 border-b border-green-400 mt-1 relative">
+                    {/* Cachet du Directeur */}
+                    <DirectorStamp />
+                  </div>
                 </div>
               </div>
 
@@ -629,7 +694,7 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
           </div>
 
           {/* Note de bas de page */}
-          <p className="mt-2 text-center text-[9px] text-gray-500 italic">
+          <p className="mt-2 text-center text-[9px] text-green-300 italic">
             N.B : toute rature ou modification annule ce bulletin
           </p>
         </div>
@@ -644,7 +709,24 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
           #bulletin-print {
             position: absolute; left: 0; top: 0;
             width: 100%; padding: 8px; font-size: 10px;
+            background-color: #14532d !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
+          #bulletin-print .bg-green-900 { background-color: #14532d !important; }
+          #bulletin-print .bg-green-50 { background-color: #f0fdf4 !important; }
+          #bulletin-print .bg-green-100 { background-color: #dcfce7 !important; }
+          #bulletin-print .bg-green-200 { background-color: #bbf7d0 !important; }
+          #bulletin-print .bg-green-300 { background-color: #86efac !important; }
+          #bulletin-print .text-green-950 { color: #052e16 !important; }
+          #bulletin-print .text-green-900 { color: #14532d !important; }
+          #bulletin-print .text-green-800 { color: #166534 !important; }
+          #bulletin-print .text-green-700 { color: #15803d !important; }
+          #bulletin-print .border-green-800 { border-color: #166534 !important; }
+          #bulletin-print .border-green-700 { border-color: #15803d !important; }
+          #bulletin-print .border-green-600 { border-color: #16a34a !important; }
+          #bulletin-print .border-green-400 { border-color: #4ade80 !important; }
+          #bulletin-print .border-green-300 { border-color: #86efac !important; }
         }
       `}</style>
     </div>

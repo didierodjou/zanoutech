@@ -17,9 +17,16 @@ import { ScheduleModule } from './schedule/schedule.module';
 import { CoursesModule } from './courses/courses.module';
 import { EmailModule } from './email/email.module';
 import { BulletinsModule } from './bulletins/bulletins.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { UploadModule } from './upload/upload.module';
+import { SchoolYearsModule } from './school-years/school-years.module';
+import { MeetingModule } from './meeting/meeting.module';
+import { AttendancesModule } from './attendances/attendances.module';
+import { MessagesModule } from './messages/messages.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, DashboardModule, TeachersModule, ClassesModule, StudentsModule, SubjectsModule, SalariesModule, AbsencesModule, GradesModule, ControlsModule, StaffModule, ScheduleModule, CoursesModule, EmailModule, BulletinsModule],
+  imports: [PrismaModule, AuthModule, DashboardModule, TeachersModule, ClassesModule, StudentsModule, SubjectsModule, SalariesModule, AbsencesModule, GradesModule, ControlsModule, StaffModule, ScheduleModule, CoursesModule, EmailModule, BulletinsModule, AttendanceModule, UploadModule, SchoolYearsModule, MeetingModule, AttendancesModule, MessagesModule, SettingsModule],
   controllers: [AppController],
   providers: [AppService],
 })

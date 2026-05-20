@@ -11,6 +11,6 @@ export default defineConfig({
   },
   migrations: {
     path: 'prisma/migrations',
-    seed: 'ts-node prisma/seed.ts', // ← AJOUTER CETTE LIGNE
+    seed: 'ts-node prisma/seed.ts',
   },
 })

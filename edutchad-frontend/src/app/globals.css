@@ -12,11 +12,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Suppression du mode sombre pour toute l'application scolaire */
+body {
+  background: #f3f4f6; /* gray-50 */
+  color: #111827; /* gray-900 */
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Styles d'impression pour les bulletins */
@@ -60,10 +60,4 @@
 /* Police pour l'arabe */
 .font-arabic {
   font-family: 'Amiri', 'Scheherazade', 'Traditional Arabic', serif;
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
