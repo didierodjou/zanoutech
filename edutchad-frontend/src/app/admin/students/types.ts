@@ -1,3 +1,5 @@
+import { ReactNode } from "react";
+
 // app/students/types.ts
 export interface Subject {
   id: string;
@@ -41,6 +43,7 @@ export interface Punishment {
 }
 
 export interface Bulletin {
+  trimester: ReactNode;
   id: string;
   period: string;
   generalAverage: number;
@@ -57,6 +60,7 @@ export interface StudentClass {
 }
 
 export interface Student {
+  createdAt: any;
   id: string;
   firstName: string;
   lastName: string;
@@ -99,6 +103,7 @@ export interface Student {
 }
 
 export interface Class {
+  [x: string]: any;
   id: string;
   name: string;
   level: string;

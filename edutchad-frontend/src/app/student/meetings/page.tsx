@@ -29,11 +29,12 @@ export default function MeetingsPage() {
     if (!student?.id) return;
 
     const fetchMeetings = async () => {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       try {
         // Utiliser l'endpoint que nous venons de créer
         const res = await fetch(`${API_BASE}/meetings/student/${student.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          //headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) {

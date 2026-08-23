@@ -27,10 +27,11 @@ export default function ActivitiesPage() {
   const fetchActivities = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       
       const res = await fetch(`${API_URL}/dashboard/activities?limit=50`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        //headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Erreur chargement activités');

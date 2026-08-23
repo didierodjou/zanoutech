@@ -17,13 +17,21 @@ interface ScheduleSlot {
 
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const HOURS = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
-const API = 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const sc = (c?: string) => c || '#6366f1';
 
-function getToken()     { return localStorage.getItem('token') || ''; }
-function getTeacherId() {
-  try { return JSON.parse(localStorage.getItem('user') || '{}').teacherId || ''; }
-  catch { return ''; }
+// ── Hook personnalisé : résout le teacherId courant via le cookie httpOnly ──
+function useTeacherId() {
+  const [teacherId, setTeacherId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/teachers/profile`, { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data?.id) setTeacherId(data.id); })
+      .catch(() => {});
+  }, []);
+
+  return teacherId;
 }
 
 // Convertit "08:30" → minutes depuis minuit
@@ -32,20 +40,20 @@ const toMin = (t: string) => { const [h,m] = t.split(':').map(Number); return h*
 const PX_PER_HOUR = 80;
 
 export default function SchedulePage() {
+  const teacherId = useTeacherId();
   const [slots, setSlots]   = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView]     = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
-    const tid = getTeacherId();
-    if (!tid) return;
-    fetch(`${API}/schedule/teacher/${tid}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
+    if (!teacherId) return;
+    fetch(`${API}/schedule/teacher/${teacherId}`, {
+      credentials: 'include',
     })
       .then(r => r.ok ? r.json() : [])
       .then(data => { setSlots(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [teacherId]);
 
   // Regrouper par jour
   const byDay = (day: number) => slots.filter(s => s.dayOfWeek === day);
@@ -53,24 +61,31 @@ export default function SchedulePage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-12 h-12 rounded-full border-4 border-violet-200 border-t-violet-600 animate-spin" />
+      <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
     </div>
   );
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
-      <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between flex-wrap gap-4">
+      {/* En-tête harmonisé avec le layout */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <Icon icon="fa-calendar-alt" /> Emploi du temps
+          <h1 className="text-2xl font-bold flex items-center gap-3 text-slate-900">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 shadow-xs">
+              <Icon icon="fa-calendar-alt" className="text-indigo-600 text-lg" />
+            </div>
+            Emploi du temps
           </h1>
-          <p className="text-violet-200 text-sm mt-1">{slots.length} créneaux cette semaine</p>
+          <p className="text-slate-500 text-sm mt-1">{slots.length} créneaux cette semaine</p>
         </div>
         <div className="flex gap-2">
           {(['grid','list'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${view === v ? 'bg-white text-violet-700' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                view === v 
+                  ? 'bg-indigo-600 text-white shadow-sm' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}>
               <Icon icon={v === 'grid' ? 'fa-th' : 'fa-list'} className="mr-1" />
               {v === 'grid' ? 'Grille' : 'Liste'}
             </button>
@@ -93,9 +108,9 @@ export default function SchedulePage() {
             const isToday = (i + 1) === today;
             return (
               <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className={`px-5 py-3 flex items-center gap-2 ${isToday ? 'bg-violet-50 border-b border-violet-100' : 'border-b border-slate-100'}`}>
-                  <span className={`font-bold ${isToday ? 'text-violet-700' : 'text-slate-700'}`}>{day}</span>
-                  {isToday && <span className="text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full">Aujourd'hui</span>}
+                <div className={`px-5 py-3 flex items-center gap-2 ${isToday ? 'bg-indigo-50 border-b border-indigo-100' : 'border-b border-slate-100'}`}>
+                  <span className={`font-bold ${isToday ? 'text-indigo-700' : 'text-slate-700'}`}>{day}</span>
+                  {isToday && <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">Aujourd'hui</span>}
                   <span className="text-xs text-slate-400 ml-auto">{daySlots.length} cours</span>
                 </div>
                 <div className="divide-y divide-slate-50">
@@ -133,9 +148,9 @@ export default function SchedulePage() {
                 {DAYS.map((d, i) => {
                   const isToday = (i + 1) === today;
                   return (
-                    <div key={i} className={`p-3 text-center border-l border-slate-50 ${isToday ? 'bg-violet-50' : ''}`}>
-                      <p className={`text-sm font-bold ${isToday ? 'text-violet-700' : 'text-slate-600'}`}>{d}</p>
-                      {isToday && <span className="text-xs bg-violet-600 text-white px-1.5 py-0.5 rounded-full">Auj.</span>}
+                    <div key={i} className={`p-3 text-center border-l border-slate-50 ${isToday ? 'bg-indigo-50' : ''}`}>
+                      <p className={`text-sm font-bold ${isToday ? 'text-indigo-700' : 'text-slate-600'}`}>{d}</p>
+                      {isToday && <span className="text-xs bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">Auj.</span>}
                     </div>
                   );
                 })}
@@ -158,7 +173,7 @@ export default function SchedulePage() {
                   const daySlots = byDay(di + 1);
                   const startHour = toMin(HOURS[0]);
                   return (
-                    <div key={di} className={`relative border-l border-slate-50 ${isToday ? 'bg-violet-50/30' : ''}`}
+                    <div key={di} className={`relative border-l border-slate-50 ${isToday ? 'bg-indigo-50/30' : ''}`}
                          style={{ height: HOURS.length * PX_PER_HOUR }}>
                       {/* Lignes horizontales */}
                       {HOURS.map((_, hi) => (

@@ -115,17 +115,17 @@ export default function SubjectsPage() {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
 
       const [subjectsRes, teachersRes, classesRes] = await Promise.all([
         fetch(`${API_URL}/subjects`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
         }),
         fetch(`${API_URL}/teachers`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
         }),
         fetch(`${API_URL}/classes`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         })
       ]);
 
@@ -180,13 +180,13 @@ export default function SubjectsPage() {
     setActionLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subjects`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(newSubject)
       });
       
@@ -212,13 +212,13 @@ export default function SubjectsPage() {
     setActionLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subjects/${editSubject.id}`, {
         method: 'PUT',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: editSubject.name,
           color: editSubject.color,
@@ -245,11 +245,9 @@ export default function SubjectsPage() {
   const viewSubjectDetails = async (subject: Subject) => {
     try {
       setActionLoading(true);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subjects/${subject.id}/details`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       });
       
       if (res.ok) {
@@ -276,13 +274,13 @@ export default function SubjectsPage() {
     
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subjects/${assignData.subjectId}/assign-teachers`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ teacherIds: assignData.teacherIds })
       });
 
@@ -309,12 +307,10 @@ export default function SubjectsPage() {
     }
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/subjects/${subjectId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       });
 
       if (res.ok) {

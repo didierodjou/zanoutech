@@ -4,19 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Icon from '@/components/ui/Icon';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export default function HomePage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
 
-  // Données pour les fonctionnalités
+  // Données des fonctionnalités
   const features = [
     {
       icon: 'fa-chalkboard-teacher',
@@ -68,7 +62,7 @@ export default function HomePage() {
     }
   ];
 
-  // Données pour les rôles
+  // Rôles
   const roles = [
     {
       icon: 'fa-user-tie',
@@ -123,76 +117,7 @@ export default function HomePage() {
     }
   ];
 
-  // Logique de redirection
-  const findTeacherAndRedirect = async (email: string, token: string) => {
-    try {
-      const res = await fetch(`http://localhost:3001/teachers/profile-by-email?email=${email}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        router.push('/teacher/dashboard');
-        return;
-      }
-
-      const teacher = await res.json();
-      
-      if (teacher) {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        user.teacherId = teacher.id;
-        localStorage.setItem('user', JSON.stringify(user));
-        router.push('/teacher/dashboard');
-      } else {
-        router.push('/teacher/dashboard');
-      }
-    } catch (error) {
-      router.push('/teacher/dashboard');
-    }
-  };
-
-  // Gestion du login
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetch('http://localhost:3001/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Erreur');
-
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      switch (data.user.role) {
-        case 'ADMIN':
-          router.push('/admin/dashboard');
-          break;
-        case 'TEACHER':
-          await findTeacherAndRedirect(data.user.email, data.access_token);
-          break;
-        case 'STUDENT':
-          router.push('/student/dashboard');
-          break;
-        case 'STAFF':
-          router.push('/staff/dashboard');
-          break;
-        default:
-          router.push('/');
-      }
-      
-    } catch (err: any) {
-      setError("Email ou mot de passe incorrect");
-      setLoading(false);
-    }
-  };
-
-  // Fonction pour défiler vers une section
+  // Défilement doux
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -203,78 +128,71 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen relative overflow-x-hidden">
-      {/* Image de fond */}
+      {/* Image de fond avec overlay plus léger pour effet professionnel */}
       <div className="fixed inset-0 z-0">
         <Image
-          src="/images/school-bg.jpg"
+          src="/images/school-bg.png"   // Correction du chemin
           alt="École"
           fill
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/95 via-purple-900/90 to-indigo-900/95"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/80 via-purple-900/75 to-indigo-900/80 backdrop-blur-[2px]"></div>
       </div>
 
-      {/* Header avec navigation */}
+      {/* Header transparent avec glassmorphism */}
       <motion.header 
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="relative z-20 container mx-auto px-6 py-4"
       >
-        <nav className="flex justify-between items-center">
+        <nav className="flex justify-between items-center backdrop-blur-md bg-white/10 rounded-2xl px-6 py-3 border border-white/20 shadow-lg">
           <div 
             className="flex items-center gap-3 cursor-pointer" 
             onClick={() => scrollToSection('hero')}
           >
-            {/* Logo du collège */}
-            <div className="bg-white rounded-lg p-1.5 shadow-lg">
+            {/* Logo mis en valeur */}
+            <div className="bg-white rounded-xl p-2 shadow-md">
               <Image 
                 src="/logo.svg" 
-                alt="Lycée Ibnou Mahadjir" 
-                width={40} 
-                height={40} 
+                alt="EduTchad" 
+                width={48} 
+                height={48} 
                 className="object-contain"
                 priority
               />
             </div>
-            <span className="text-2xl font-bold text-white">
+            <span className="text-2xl font-bold text-white drop-shadow-lg">
               EduTchad
             </span>
           </div>
           
           <div className="hidden md:flex items-center gap-8">
+            {['features', 'about', 'contact'].map((section) => (
+              <button 
+                key={section}
+                onClick={() => scrollToSection(section)}
+                className={`text-white/90 hover:text-white transition relative group capitalize ${
+                  activeSection === section ? 'text-white' : ''
+                }`}
+              >
+                {section === 'features' ? 'Fonctionnalités' : section === 'about' ? 'À propos' : 'Contact'}
+                <span className={`absolute -bottom-1 left-0 h-0.5 bg-yellow-400 transition-all duration-300 ${
+                  activeSection === section ? 'w-full' : 'w-0 group-hover:w-full'
+                }`}></span>
+              </button>
+            ))}
             <button 
-              onClick={() => scrollToSection('features')}
-              className={`text-white/90 hover:text-white transition relative group ${activeSection === 'features' ? 'text-white' : ''}`}
-            >
-              Fonctionnalités
-              <span className={`absolute -bottom-1 left-0 h-0.5 bg-yellow-400 transition-all duration-300 ${activeSection === 'features' ? 'w-full' : 'w-0 group-hover:w-full'}`}></span>
-            </button>
-            <button 
-              onClick={() => scrollToSection('about')}
-              className={`text-white/90 hover:text-white transition relative group ${activeSection === 'about' ? 'text-white' : ''}`}
-            >
-              À propos
-              <span className={`absolute -bottom-1 left-0 h-0.5 bg-yellow-400 transition-all duration-300 ${activeSection === 'about' ? 'w-full' : 'w-0 group-hover:w-full'}`}></span>
-            </button>
-            <button 
-              onClick={() => scrollToSection('contact')}
-              className={`text-white/90 hover:text-white transition relative group ${activeSection === 'contact' ? 'text-white' : ''}`}
-            >
-              Contact
-              <span className={`absolute -bottom-1 left-0 h-0.5 bg-yellow-400 transition-all duration-300 ${activeSection === 'contact' ? 'w-full' : 'w-0 group-hover:w-full'}`}></span>
-            </button>
-            <button 
-              onClick={() => setShowLoginModal(true)}
-              className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              onClick={() => router.push('/login')}
+              className="bg-white text-blue-600 px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-50 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               Se connecter
             </button>
           </div>
           
           <button 
-            onClick={() => setShowLoginModal(true)}
+            onClick={() => router.push('/login')}
             className="md:hidden bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold"
           >
             <Icon icon="fa-sign-in-alt" />
@@ -284,7 +202,7 @@ export default function HomePage() {
 
       {/* Contenu principal */}
       <main className="relative z-10">
-        {/* Section Hero */}
+        {/* Hero */}
         <section id="hero" className="container mx-auto px-6 py-12 md:py-20 min-h-screen flex items-center">
           <div className="max-w-4xl">
             <motion.div
@@ -328,7 +246,7 @@ export default function HomePage() {
               className="flex flex-wrap gap-4"
             >
               <button 
-                onClick={() => setShowLoginModal(true)}
+                onClick={() => router.push('/login')}
                 className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:from-yellow-500 hover:to-yellow-600 transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 flex items-center gap-2"
               >
                 <Icon icon="fa-rocket" />
@@ -361,7 +279,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section Fonctionnalités */}
+        {/* Fonctionnalités */}
         <section id="features" className="py-20 bg-white">
           <div className="container mx-auto px-6">
             <motion.div 
@@ -409,7 +327,7 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Rôles et interfaces */}
+            {/* Rôles */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -442,7 +360,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section À propos */}
+        {/* À propos */}
         <section id="about" className="py-20 bg-gray-50">
           <div className="container mx-auto px-6">
             <motion.div 
@@ -498,7 +416,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section Témoignages */}
+        {/* Témoignages */}
         <section className="py-20 bg-white">
           <div className="container mx-auto px-6">
             <motion.div 
@@ -540,7 +458,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Section Contact */}
+        {/* Contact */}
         <section id="contact" className="py-20 bg-gray-50">
           <div className="container mx-auto px-6">
             <motion.div 
@@ -556,7 +474,6 @@ export default function HomePage() {
 
               <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
-                  {/* Informations de contact */}
                   <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 text-white">
                     <h3 className="text-2xl font-bold mb-6">Informations</h3>
                     
@@ -604,7 +521,6 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {/* Formulaire de contact */}
                   <div className="p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6">Envoyez-nous un message</h3>
                     
@@ -664,13 +580,12 @@ export default function HomePage() {
       <footer className="relative z-10 bg-gray-900 border-t border-gray-800 py-12">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            {/* Logo et description */}
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="bg-white rounded-lg p-1">
                   <Image 
                     src="/logo.svg" 
-                    alt="Lycée Ibnou Mahadjir" 
+                    alt="EduTchad" 
                     width={40} 
                     height={40} 
                     className="object-contain"
@@ -683,7 +598,6 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Liens rapides */}
             <div>
               <h4 className="text-white font-semibold mb-4">Liens rapides</h4>
               <ul className="space-y-2">
@@ -708,7 +622,6 @@ export default function HomePage() {
               </ul>
             </div>
 
-            {/* Mentions légales */}
             <div>
               <h4 className="text-white font-semibold mb-4">Mentions légales</h4>
               <ul className="space-y-2">
@@ -733,7 +646,6 @@ export default function HomePage() {
               </ul>
             </div>
 
-            {/* Newsletter */}
             <div>
               <h4 className="text-white font-semibold mb-4">Newsletter</h4>
               <p className="text-gray-400 text-sm mb-3">
@@ -775,154 +687,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
-      {/* MODALE DE CONNEXION */}
-      <AnimatePresence>
-        {showLoginModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLoginModal(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="h-32 bg-gradient-to-r from-blue-600 to-purple-600 relative">
-                <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
-                  <div className="w-24 h-24 bg-white rounded-2xl shadow-xl flex items-center justify-center p-2">
-                    <Image 
-                      src="/logo.svg" 
-                      alt="Lycée Ibnou Mahadjir" 
-                      width={80} 
-                      height={40} 
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setShowLoginModal(false)}
-                  className="absolute top-4 right-4 text-white/80 hover:text-white"
-                >
-                  <Icon icon="fa-times" className="text-xl" />
-                </button>
-              </div>
-
-              <div className="px-8 pt-16 pb-8">
-                <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">
-                  Bienvenue sur EduTchad
-                </h2>
-                <p className="text-center text-gray-500 mb-8">
-                  Connectez-vous à votre espace
-                </p>
-
-                <form onSubmit={handleLogin} className="space-y-5">
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 mb-1 block">
-                      Email
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                        <Icon icon="fa-envelope" />
-                      </span>
-                      <input 
-                        type="email" 
-                        required 
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-900"
-                        placeholder="nom@ecole.td"
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 mb-1 block">
-                      Mot de passe
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                        <Icon icon="fa-lock" />
-                      </span>
-                      <input 
-                        type={showPassword ? "text" : "password"}
-                        required 
-                        className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-900"
-                        placeholder="••••••••"
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        <Icon icon={showPassword ? "fa-eye" : "fa-eye-slash"} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                      <span className="text-sm text-gray-600">Se souvenir de moi</span>
-                    </label>
-                    <button type="button" className="text-sm text-blue-600 hover:text-blue-800">
-                      Mot de passe oublié ?
-                    </button>
-                  </div>
-
-                  {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                      <Icon icon="fa-exclamation-circle" />
-                      {error}
-                    </div>
-                  )}
-
-                  <button 
-                    type="submit" 
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Icon icon="fa-spinner" className="fa-spin" />
-                        Connexion...
-                      </>
-                    ) : (
-                      <>
-                        <Icon icon="fa-sign-in-alt" />
-                        Se connecter
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-500">
-                    Nouveau sur la plateforme ?{" "}
-                    <button className="text-blue-600 hover:text-blue-800 font-semibold">
-                      Contacter l'administration
-                    </button>
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <p className="text-xs text-center text-gray-400">
-                    En vous connectant, vous acceptez nos conditions d'utilisation
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

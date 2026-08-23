@@ -28,15 +28,6 @@ export function useDeletedTeachers(): UseDeletedTeachersReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  const getAuthHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
 
   const parseErrorMessage = async (res: Response): Promise<string> => {
     try {
@@ -54,7 +45,7 @@ export function useDeletedTeachers(): UseDeletedTeachersReturn {
     setError(null);
     try {
       const res = await fetch(`${API_URL}/teachers/deleted`, {
-        headers: getAuthHeaders(),
+        credentials: 'include',
       });
       if (!res.ok) {
         const msg = await parseErrorMessage(res);
@@ -82,7 +73,7 @@ export function useDeletedTeachers(): UseDeletedTeachersReturn {
     try {
       const res = await fetch(`${API_URL}/teachers/${id}/restore`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        credentials: 'include',
       });
       if (!res.ok) {
         const msg = await parseErrorMessage(res);
@@ -109,7 +100,7 @@ export function useDeletedTeachers(): UseDeletedTeachersReturn {
     try {
       const res = await fetch(`${API_URL}/teachers/${id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
+        credentials: 'include',
       });
       if (!res.ok) {
         const msg = await parseErrorMessage(res);

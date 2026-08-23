@@ -28,10 +28,11 @@ export default function ChangePasswordModal({ teacher, onClose }: ChangePassword
     }
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${teacher.id}/change-password`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for session authentication
         body: JSON.stringify({ newPassword: newPassword || undefined }),
       });
       const data = await res.json();

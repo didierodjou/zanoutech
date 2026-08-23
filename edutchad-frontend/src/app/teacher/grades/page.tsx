@@ -52,16 +52,7 @@ interface StudentGradeData {
 }
 
 const TRIMESTERS = [1, 2, 3];
-const API = 'http://localhost:3001';
-
-const getToken = () => localStorage.getItem('token') || '';
-const getTeacherId = () => {
-  try {
-    return JSON.parse(localStorage.getItem('user') || '{}').teacherId || '';
-  } catch {
-    return '';
-  }
-};
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const sc = (c?: string) => c || '#6366f1';
 
@@ -93,6 +84,7 @@ const calculateAverage = (devoir: number, interrogations: number[]): number => {
 const clampTo20 = (value: number): number => Math.min(Math.max(value, 0), 20);
 
 export default function GradesPage() {
+  const [teacherId, setTeacherId] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [trimester, setTrimester] = useState(1);
@@ -124,28 +116,40 @@ export default function GradesPage() {
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  const headers = {
-    Authorization: `Bearer ${getToken()}`,
-    'Content-Type': 'application/json',
-  };
-
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // Charger les cours de l'enseignant
+  // 1. Résoudre le teacherId courant via le cookie httpOnly (pas de localStorage)
   useEffect(() => {
-    const tid = getTeacherId();
-    if (!tid) return;
-    fetch(`${API}/teachers/${tid}/courses`, { headers })
+    fetch(`${API}/teachers/profile`, { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.id) {
+          setTeacherId(data.id);
+        } else {
+          setError('Impossible de récupérer votre profil enseignant.');
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        setError('Erreur de connexion au serveur.');
+        setLoading(false);
+      });
+  }, []);
+
+  // 2. Charger les cours de l'enseignant, une fois le teacherId connu
+  useEffect(() => {
+    if (!teacherId) return;
+    fetch(`${API}/teachers/${teacherId}/courses`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setCourses(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [teacherId]);
 
   // Charger élèves + contrôles + grades pour le cours et trimestre sélectionnés
   useEffect(() => {
@@ -160,9 +164,9 @@ export default function GradesPage() {
     const gradesUrl = `${API}/grades/by-class?classId=${selectedCourse.class.id}&subjectId=${selectedCourse.subject.id}&trimester=${trimester}`;
 
     Promise.all([
-      fetch(studentsUrl, { headers }).then(res => (res.ok ? res.json() : [])),
-      fetch(controlsUrl, { headers }).then(res => (res.ok ? res.json() : [])),
-      fetch(gradesUrl, { headers }).then(res => (res.ok ? res.json() : [])),
+      fetch(studentsUrl, { credentials: 'include' }).then(res => (res.ok ? res.json() : [])),
+      fetch(controlsUrl, { credentials: 'include' }).then(res => (res.ok ? res.json() : [])),
+      fetch(gradesUrl, { credentials: 'include' }).then(res => (res.ok ? res.json() : [])),
     ])
       .then(([studentsData, controlsData, gradesData]) => {
         const studs: Student[] = Array.isArray(studentsData)
@@ -198,8 +202,8 @@ export default function GradesPage() {
     const gradesUrl = `${API}/grades/by-class?classId=${selectedCourse.class.id}&subjectId=${selectedCourse.subject.id}&trimester=${trimester}`;
 
     Promise.all([
-      fetch(controlsUrl, { headers }).then(res => (res.ok ? res.json() : [])),
-      fetch(gradesUrl, { headers }).then(res => (res.ok ? res.json() : [])),
+      fetch(controlsUrl, { credentials: 'include' }).then(res => (res.ok ? res.json() : [])),
+      fetch(gradesUrl, { credentials: 'include' }).then(res => (res.ok ? res.json() : [])),
     ]).then(([controlsData, gradesData]) => {
       // Filtrer les contrôles par trimestre
       const allControls: Control[] = Array.isArray(controlsData) ? controlsData : [];
@@ -276,7 +280,8 @@ export default function GradesPage() {
 
       const res = await fetch(`${API}/grades`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 

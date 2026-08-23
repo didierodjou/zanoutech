@@ -19,6 +19,24 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* --- Curseur pointeur pour tous les éléments interactifs --- */
+button,
+a,
+[role="button"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+input[type="file"]::-webkit-file-upload-button,
+label[for],
+summary,
+select,
+[tabindex]:not([tabindex="-1"]),
+[onclick],
+[onmousedown],
+[onmouseup] {
+  cursor: pointer;
+}
+
 /* Styles d'impression pour les bulletins */
 @media print {
   body * {

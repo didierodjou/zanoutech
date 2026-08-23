@@ -1,5 +1,5 @@
 // src/students/students.controller.ts
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { StudentsService } from './students.service';
 import { Period } from '@prisma/client';
 
@@ -16,6 +16,16 @@ export class StudentsController {
   @Get()
   async findAll(@Query('includeDeleted') includeDeleted?: string) {
     return this.studentsService.findAll(includeDeleted === 'true');
+  }
+
+  // ⚠️ Route statique déclarée AVANT ':id' pour ne pas être capturée par le paramètre dynamique
+  @Get('profile')
+  async getProfile(@Req() req: any) {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('Non authentifié');
+    }
+    return this.studentsService.getProfile(userId);
   }
 
   @Get(':id')

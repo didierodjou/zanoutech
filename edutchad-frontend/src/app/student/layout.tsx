@@ -7,6 +7,20 @@ import Icon from '@/components/ui/Icon';
 import { StudentProvider, useStudent } from '@/context/StudentContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
+// Hook personnalisé pour détecter le mode mobile
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 const NAV_ITEMS = [
   { href: '/student/dashboard', icon: 'fa-th-large', label: 'Cabinet personnel' },
   { href: '/student/grades', icon: 'fa-chart-bar', label: 'Notes & Moyennes' },
@@ -18,6 +32,7 @@ const NAV_ITEMS = [
   { href: '/student/help', icon: 'fa-question-circle', label: 'Aide' },
 ];
 
+// --- Modal de déconnexion (inchangé) ---
 function LogoutModal({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) {
   if (!isOpen) return null;
   return (
@@ -58,6 +73,7 @@ function LogoutModal({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose:
   );
 }
 
+// --- Dropdown du profil (inchangé, mais peut être adapté si besoin) ---
 function ProfileDropdown() {
   const { student } = useStudent();
   const [isOpen, setIsOpen] = useState(false);
@@ -84,7 +100,7 @@ function ProfileDropdown() {
         <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center">
           {student.firstName?.[0]?.toUpperCase() || '?'}
         </div>
-        <div className="text-left text-[11px]">
+        <div className="text-left text-[11px] hidden sm:block">
           <span className="text-slate-700 font-bold">
             {student.firstName} {student.lastName}
           </span>
@@ -140,44 +156,61 @@ function ProfileDropdown() {
   );
 }
 
-function Sidebar({ sidebarOpen, setSidebarOpen, onLogoutClick }: { sidebarOpen: boolean; setSidebarOpen: (open: boolean) => void; onLogoutClick: () => void }) {
+// --- Sidebar ---
+function Sidebar({
+  sidebarOpen,
+  setSidebarOpen,
+  onLogoutClick,
+  isMobile,
+}: {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  onLogoutClick: () => void;
+  isMobile: boolean;
+}) {
   const { student, loading } = useStudent();
   const pathname = usePathname();
 
-  const initials = student && student.firstName && student.lastName
-    ? `${student.firstName[0]}${student.lastName[0]}`.toUpperCase()
-    : '?';
+  const initials =
+    student && student.firstName && student.lastName
+      ? `${student.firstName[0]}${student.lastName[0]}`.toUpperCase()
+      : '?';
 
   return (
     <>
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
       <aside
         className={`
-          fixed top-0 left-0 h-full w-64 z-50
+          fixed top-0 left-0 h-full z-50
           bg-[#1e2538] text-slate-300
           flex flex-col border-r border-slate-800/40
-          transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          transition-all duration-300 ease-in-out
+          ${isMobile ? (sidebarOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
+          ${isMobile ? 'w-64' : sidebarOpen ? 'w-64' : 'w-20'}
         `}
       >
-        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-700/30 min-h-[73px]">
+        {/* Bouton toggle (chevron) : uniquement sur desktop */}
+        {!isMobile && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="absolute -right-3 top-20 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg hover:bg-indigo-700 transition z-10"
+            aria-label={sidebarOpen ? 'Réduire le menu' : 'Déployer le menu'}
+          >
+            <Icon icon={sidebarOpen ? 'fa-chevron-left' : 'fa-chevron-right'} className="text-xs" />
+          </button>
+        )}
+
+        <div className="flex items-center justify-center px-5 py-5 border-b border-slate-700/30 min-h-[73px]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20 flex-shrink-0">
               <Icon icon="fa-graduation-cap" className="text-white text-xs" />
             </div>
-            <div>
-              <p className="text-white font-bold text-sm leading-none tracking-wide">EduTchad</p>
-              <p className="text-indigo-400 text-[10px] mt-1">Espace Élève</p>
-            </div>
+            {sidebarOpen && (
+              <div>
+                <p className="text-white font-bold text-sm leading-none tracking-wide">EduTchad</p>
+                <p className="text-indigo-400 text-[10px] mt-1">Espace Élève</p>
+              </div>
+            )}
           </div>
-          <button className="text-slate-400 hover:text-white" onClick={() => setSidebarOpen(false)}>
-            <Icon icon="fa-times" className="text-xs" />
-          </button>
         </div>
 
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
@@ -187,7 +220,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen, onLogoutClick }: { sidebarOpen: 
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setSidebarOpen(false)}
+                title={!sidebarOpen ? item.label : ''}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-medium
                   transition-all duration-200 justify-between group
@@ -198,9 +231,9 @@ function Sidebar({ sidebarOpen, setSidebarOpen, onLogoutClick }: { sidebarOpen: 
               >
                 <div className="flex items-center gap-3">
                   <Icon icon={item.icon as any} className={`text-sm ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  <span>{item.label}</span>
+                  {sidebarOpen && <span>{item.label}</span>}
                 </div>
-                {isActive && <Icon icon="fa-chevron-right" className="text-[9px] opacity-80" />}
+                {isActive && sidebarOpen && <Icon icon="fa-chevron-right" className="text-[9px] opacity-80" />}
               </Link>
             );
           })}
@@ -212,29 +245,51 @@ function Sidebar({ sidebarOpen, setSidebarOpen, onLogoutClick }: { sidebarOpen: 
               {!loading && initials}
               {loading && '...'}
             </div>
-            <div className="min-w-0">
-              <p className="text-slate-200 font-semibold text-xs truncate">
-                {!loading && student ? `${student.firstName} ${student.lastName}` : 'Chargement...'}
-              </p>
-              <p className="text-slate-500 text-[10px] truncate">
-                {!loading && student ? student.registrationNo : ''}
-              </p>
-            </div>
+            {sidebarOpen && (
+              <div className="min-w-0">
+                <p className="text-slate-200 font-semibold text-xs truncate">
+                  {!loading && student ? `${student.firstName} ${student.lastName}` : 'Chargement...'}
+                </p>
+                <p className="text-slate-500 text-[10px] truncate">
+                  {!loading && student ? student.registrationNo : ''}
+                </p>
+              </div>
+            )}
           </div>
           <button
             onClick={onLogoutClick}
+            title={!sidebarOpen ? 'Déconnexion' : ''}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-all font-medium"
           >
             <Icon icon="fa-sign-out-alt" className="text-sm" />
-            <span>Déconnexion</span>
+            {sidebarOpen && <span>Déconnexion</span>}
           </button>
         </div>
       </aside>
+
+      {/* Overlay pour mobile : fond sombre derrière la sidebar */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
     </>
   );
 }
 
-function LayoutContent({ children, setSidebarOpen }: { children: React.ReactNode; setSidebarOpen: (open: boolean) => void }) {
+// --- Contenu principal (header + main) ---
+function LayoutContent({
+  children,
+  sidebarOpen,
+  setSidebarOpen,
+  isMobile,
+}: {
+  children: React.ReactNode;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  isMobile: boolean;
+}) {
   const { student, loading } = useStudent();
   const [formattedDate, setFormattedDate] = useState('');
 
@@ -246,42 +301,59 @@ function LayoutContent({ children, setSidebarOpen }: { children: React.ReactNode
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#f8fafc]">
+      <div className={`flex-1 flex items-center justify-center bg-[#f8fafc] transition-all duration-300 ml-0 md:${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
         <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc]">
-      <header className="bg-white border-b border-slate-200 min-h-[73px] flex items-center justify-between px-6 lg:px-8 flex-shrink-0">
+    <div
+      className={`
+        flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300
+        ml-0 ${sidebarOpen ? 'md:ml-64' : 'md:ml-20'}
+      `}
+    >
+      <header className="bg-white border-b border-slate-200 min-h-[73px] flex items-center justify-between px-4 md:px-6 lg:px-8 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(true)} className="text-slate-600 p-2 rounded-xl hover:bg-slate-100" aria-label="Ouvrir le menu">
-            <Icon icon="fa-bars" className="text-base" />
+          {/* Bouton hamburger pour mobile */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden text-slate-600 hover:text-indigo-600 transition"
+            aria-label={sidebarOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+          >
+            <Icon icon={sidebarOpen ? 'fa-times' : 'fa-bars'} className="text-xl" />
           </button>
           <h2 className="text-slate-800 font-bold text-sm lg:text-base">Espace Élève</h2>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-slate-500 text-[11px] font-medium bg-slate-50 border border-slate-200/60 px-3 py-2 rounded-xl">
+
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="hidden sm:flex items-center gap-2 text-slate-500 text-[11px] font-medium bg-slate-50 border border-slate-200/60 px-3 py-2 rounded-xl">
             <Icon icon="fa-calendar-alt" className="text-slate-400" />
             <span className="capitalize">{formattedDate}</span>
           </div>
           <ProfileDropdown />
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>
+
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">{children}</main>
     </div>
   );
 }
 
+// --- Layout principal ---
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
+  // Par défaut, on ouvre la sidebar sur desktop, on la ferme sur mobile
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // Si on passe en mode mobile, on ferme la sidebar automatiquement
   useEffect(() => {
-    const isDesktop = window.innerWidth >= 1024;
-    setSidebarOpen(isDesktop);
-  }, []);
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     const handleOpenModal = () => setShowLogoutModal(true);
@@ -289,17 +361,41 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     return () => window.removeEventListener('openLogoutModal', handleOpenModal);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = '/';
+  const handleLogout = async () => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (e) {
+      console.error('Erreur logout', e);
+    } finally {
+      window.location.href = '/login';
+    }
   };
 
   return (
     <StudentProvider>
       <div className="min-h-screen w-screen bg-[#f8fafc] flex overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} onLogoutClick={() => setShowLogoutModal(true)} />
-        <LayoutContent setSidebarOpen={setSidebarOpen}>{children}</LayoutContent>
-        <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={handleLogout} />
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          onLogoutClick={() => setShowLogoutModal(true)}
+          isMobile={isMobile}
+        />
+        <LayoutContent
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          isMobile={isMobile}
+        >
+          {children}
+        </LayoutContent>
+        <LogoutModal
+          isOpen={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          onConfirm={handleLogout}
+        />
       </div>
     </StudentProvider>
   );

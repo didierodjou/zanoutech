@@ -1,13 +1,16 @@
-// src/app/admin/layout.tsx
 'use client';
+
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/ui/Icon';
+import { AppProvider, useApp } from '@/app/context/AppContext';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+// Composant interne qui utilise le contexte
+function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { settings, loading: settingsLoading } = useApp();
   const [user, setUser] = useState<any>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -23,37 +26,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Vérification de sécurité (Si pas connecté -> Dehors)
+  // Vérification de l'authentification
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    const checkAuth = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${baseUrl}/auth/me`, {
+          method: 'POST',
+          credentials: 'include',
+        });
 
-    if (!token || !storedUser) {
-      router.push('/');
-    } else {
-      setUser(JSON.parse(storedUser));
-    }
+        if (!res.ok) {
+          router.push('/login');
+          return;
+        }
+
+        const data = await res.json();
+        setUser(data.user);
+      } catch (e) {
+        console.error('Erreur vérification session', e);
+        router.push('/login');
+      }
+    };
+
+    checkAuth();
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
+  const handleLogout = async () => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (e) {
+      console.error('Erreur logout', e);
+    } finally {
+      router.push('/login');
+    }
   };
 
   const confirmLogout = () => setShowLogoutConfirm(true);
   const cancelLogout = () => setShowLogoutConfirm(false);
 
-  if (!user) return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-      <div className="text-center">
-        <Icon icon="fa-spinner" className="fa-spin text-4xl text-blue-500 mb-4" />
-        <p className="text-slate-600">Chargement de votre espace...</p>
-      </div>
-    </div>
-  );
-
-  // Navigation items avec icônes Font Awesome
+  // Navigation items
   const navItems = [
     { href: '/admin/dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
     { href: '/admin/classes', icon: 'fa-chalkboard-teacher', label: 'Classes' },
@@ -69,18 +85,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/settings', icon: 'fa-cog', label: 'Paramètres' },
   ];
 
-  // Sur mobile, on affiche les 5 premiers dans la barre du bas, le reste dans un menu "Plus"
   const bottomNavItems = navItems.slice(0, 4);
   const moreNavItems = navItems.slice(4);
 
   const currentLabel = navItems.find(item => item.href === pathname)?.label || 'Administration';
 
+  // Attendre le chargement des settings et de l'utilisateur
+  if (!user || settingsLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <Icon icon="fa-spinner" className="fa-spin text-4xl text-blue-500 mb-4" />
+          <p className="text-slate-600">Chargement de votre espace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Récupérer les valeurs dynamiques
+  const schoolName = settings?.schoolName || 'EduTchad';
+  const principalName = settings?.principalName || user.name || 'Administrateur';
+  const logo = settings?.logo || null;
+
   return (
     <div className={`flex min-h-screen bg-slate-100 font-sans overflow-x-hidden`}>
 
-      {/* =============================================
-          SIDEBAR DESKTOP (cachée sur mobile)
-         ============================================= */}
+      {/* ===== SIDEBAR DESKTOP ===== */}
       <aside
         className={`
           hidden md:flex flex-col bg-slate-800 text-white fixed h-full shadow-xl z-30
@@ -91,16 +121,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Logo */}
         <div className={`p-4 border-b border-slate-700 flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!sidebarCollapsed && (
-            <div>
-              <h1 className="text-lg font-bold flex items-center gap-2">
-                <Icon icon="fa-school" className="text-blue-400" />
-                <span>EduTchad</span>
-              </h1>
-              <p className="text-xs text-slate-400 mt-0.5">Plateforme de Gestion</p>
+            <div className="flex items-center gap-2 overflow-hidden">
+              {logo ? (
+                <img src={logo} alt="Logo" className="h-8 w-8 object-contain rounded" />
+              ) : (
+                <Icon icon="fa-school" className="text-blue-400 text-xl" />
+              )}
+              <div>
+                <h1 className="text-lg font-bold truncate">{schoolName}</h1>
+                {/* <p className="text-xs text-slate-400 mt-0.5">Plateforme de Gestion</p> */}
+              </div>
             </div>
           )}
           {sidebarCollapsed && (
-            <Icon icon="fa-school" className="text-blue-400 text-xl" />
+            logo ? (
+              <img src={logo} alt="Logo" className="h-8 w-8 object-contain rounded" />
+            ) : (
+              <Icon icon="fa-school" className="text-blue-400 text-xl" />
+            )
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -130,7 +168,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!sidebarCollapsed && (
             <div className="px-3 py-2 text-sm text-slate-400 flex items-center gap-2">
               <Icon icon="fa-user-circle" className="text-lg flex-shrink-0" />
-              <span className="truncate">{user.name || 'Administrateur'}</span>
+              <span className="truncate">{principalName}</span>
             </div>
           )}
           <button
@@ -146,9 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* =============================================
-          MAIN CONTENT
-         ============================================= */}
+      {/* ===== MAIN CONTENT ===== */}
       <main className={`
         flex-1 transition-all duration-300 overflow-x-hidden min-w-0
         ${isMobile ? 'ml-0 pb-20' : sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}
@@ -156,16 +192,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 sticky top-0 z-40 shadow-sm">
           <div className="flex justify-between items-center">
-            {/* Titre page */}
             <div className="flex items-center gap-3">
-              {/* Bouton hamburger visible uniquement sur mobile - optionnel */}
               <h2 className="text-lg md:text-2xl font-bold text-slate-800 truncate">
                 {currentLabel}
               </h2>
             </div>
 
             <div className="flex items-center gap-2 md:gap-3">
-              {/* Date : cachée sur mobile pour gagner de la place */}
+              {/* Date */}
               <span className="hidden lg:flex text-sm text-slate-500 items-center gap-1">
                 <Icon icon="fa-calendar-alt" className="mr-1" />
                 {new Date().toLocaleDateString('fr-FR', {
@@ -175,7 +209,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   day: 'numeric'
                 })}
               </span>
-              {/* Date courte sur tablette */}
               <span className="hidden md:flex lg:hidden text-sm text-slate-500 items-center gap-1">
                 {new Date().toLocaleDateString('fr-FR', {
                   day: 'numeric',
@@ -186,8 +219,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
               {/* Avatar utilisateur */}
               <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-md text-sm md:text-base flex-shrink-0">
-                {user.name
-                  ? user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                {principalName
+                  ? principalName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
                   : 'AD'}
               </div>
             </div>
@@ -200,21 +233,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </main>
 
-      {/* =============================================
-          BARRE DE NAVIGATION MOBILE (bas de l'écran)
-         ============================================= */}
+      {/* ===== BARRE DE NAVIGATION MOBILE ===== */}
       <MobileBottomNav
         navItems={navItems}
         bottomNavItems={bottomNavItems}
         moreNavItems={moreNavItems}
         pathname={pathname}
-        user={user}
+        user={{ ...user, name: principalName }}
         onLogout={confirmLogout}
       />
 
-      {/* =============================================
-          MODAL CONFIRMATION DÉCONNEXION
-         ============================================= */}
+      {/* ===== MODAL CONFIRMATION DÉCONNEXION ===== */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-xl">
@@ -222,11 +251,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Icon icon="fa-exclamation-triangle" className="text-3xl" />
               <h3 className="text-xl font-bold text-gray-900">Confirmation</h3>
             </div>
-
             <p className="text-gray-600 mb-6">
               Êtes-vous sûr de vouloir vous déconnecter ?
             </p>
-
             <div className="flex justify-end gap-3">
               <button
                 onClick={cancelLogout}
@@ -249,9 +276,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 }
 
-/* ================================================
-   COMPOSANT : Lien de navigation desktop (sidebar)
-   ================================================ */
+// ================================================
+// COMPOSANTS INTERNES
+// ================================================
+
 function DesktopNavLink({ href, icon, label, active = false, collapsed = false }: any) {
   return (
     <Link
@@ -273,28 +301,19 @@ function DesktopNavLink({ href, icon, label, active = false, collapsed = false }
   );
 }
 
-/* ================================================
-   COMPOSANT : Barre de navigation mobile (bas)
-   ================================================ */
 function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, user, onLogout }: any) {
   const [showMore, setShowMore] = useState(false);
 
   return (
     <>
-      {/* Panneau "Plus" qui se déploie vers le haut */}
       {showMore && (
         <>
-          {/* Overlay pour fermer */}
           <div
             className="md:hidden fixed inset-0 bg-black/40 z-40"
             onClick={() => setShowMore(false)}
           />
-          {/* Panneau déroulant */}
           <div className="md:hidden fixed bottom-16 left-0 right-0 bg-slate-800 z-50 rounded-t-2xl shadow-2xl border-t border-slate-700 px-4 py-4 pb-2">
-            {/* Indicateur de glissement */}
             <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mb-4" />
-
-            {/* Logo et nom */}
             <div className="flex items-center gap-3 px-2 mb-4 pb-3 border-b border-slate-700">
               <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                 {user.name
@@ -307,7 +326,6 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
               </div>
             </div>
 
-            {/* Liens supplémentaires */}
             <div className="grid grid-cols-3 gap-2 mb-3">
               {moreNavItems.map((item: any) => (
                 <Link
@@ -326,7 +344,6 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
               ))}
             </div>
 
-            {/* Bouton déconnexion */}
             <button
               onClick={() => { setShowMore(false); onLogout(); }}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-400 hover:bg-slate-700 rounded-xl transition mt-1"
@@ -338,10 +355,8 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
         </>
       )}
 
-      {/* Barre de navigation fixe en bas */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 z-40 shadow-2xl">
         <div className="flex items-stretch h-16">
-          {/* Les 4 premiers liens */}
           {bottomNavItems.map((item: any) => (
             <Link
               key={item.href}
@@ -352,7 +367,6 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
                   : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
-              {/* Indicateur actif */}
               {pathname === item.href && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-400 rounded-b-full" />
               )}
@@ -361,7 +375,6 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
             </Link>
           ))}
 
-          {/* Bouton "Plus" */}
           <button
             onClick={() => setShowMore(!showMore)}
             className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all relative
@@ -377,5 +390,17 @@ function MobileBottomNav({ navItems, bottomNavItems, moreNavItems, pathname, use
         </div>
       </nav>
     </>
+  );
+}
+
+// ================================================
+// EXPORT DU LAYOUT AVEC PROVIDER
+// ================================================
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AppProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AppProvider>
   );
 }

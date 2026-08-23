@@ -11,7 +11,7 @@ interface Matiere {
   nom: string;
   moyenne?: number | null;
   coefficient: number;
-  categorie?: string;
+  categorie?: string; // ← ajout
   appreciation?: string;
   devoir?: number | null;
   composition?: number | null;
@@ -28,6 +28,7 @@ interface BilanSection {
 }
 
 interface BulletinData {
+  effectif: string;
   student: {
     firstName: string;
     lastName: string;
@@ -187,19 +188,8 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
       totalPoints: m.totalPoints ?? (m.moyenne != null ? m.moyenne * (m.coefficient || 2) : 0)
     }));
 
-    const litteraires = rawMatieres.filter(m =>
-      m.categorie === 'LITTERAIRE' ||
-      ['français', 'histoire', 'philosophie', 'anglais', 'arabe'].some(k =>
-        (m.nom || '').toLowerCase().includes(k)
-      )
-    );
-
-    const scientifiques = rawMatieres.filter(m =>
-      m.categorie === 'SCIENTIFIQUE' ||
-      ['mathématiques', 'math', 'svt', 'physique', 'chimie', 'géographie', 'geographie'].some(k =>
-        (m.nom || '').toLowerCase().includes(k)
-      )
-    );
+    const litteraires = rawMatieres.filter(m => m.categorie === 'LITTERAIRE');
+const scientifiques = rawMatieres.filter(m => m.categorie === 'SCIENTIFIQUE');
 
     const bilanLitt: BilanSection = d.bilans?.litteraire ?? calcBilan(litteraires);
     const bilanSci: BilanSection = d.bilans?.scientifique ?? calcBilan(scientifiques);
@@ -403,9 +393,9 @@ export default function Bulletin({ bulletinData, onClose, onPrint, onDownload }:
                 </span>
                 <span className="text-[10px] text-green-700 ml-2" dir="rtl">الصف</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold w-20 shrink-0 text-green-950">Effectif :</span>
-                <span className="border-b-2 border-green-800 px-1 text-green-900">{rang?.total ?? '-'} élèves</span>
+              <div className="font-bold w-28 shrink-0 text-green-950">
+                <span>Effectif :</span>
+                <span className="font-bold text-green-900">{bulletinData.effectif || '-'} élèves</span>
               </div>
             </div>
           </div>

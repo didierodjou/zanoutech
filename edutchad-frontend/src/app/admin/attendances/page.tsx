@@ -20,21 +20,17 @@ export default function AttendancesPage() {
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-  const getToken = () => localStorage.getItem('token');
+  //const getToken = () => localStorage.getItem('token');
 
   const fetchAbsences = async () => {
-    const token = getToken();
-    if (!token) {
-      setError('Non authentifié');
-      setLoading(false);
-      return;
-    }
+    //const token = getToken();
 
     try {
       let url = `${API_BASE}/admin/attendances`;
       if (filterJustified !== 'all') url += `?justified=${filterJustified}`;
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        //headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include'
       });
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
       const data = await res.json();
@@ -53,11 +49,7 @@ export default function AttendancesPage() {
   }, [filterJustified]);
 
   const toggleJustified = async (id: string, current: boolean) => {
-    const token = getToken();
-    if (!token) {
-      setError('Non authentifié');
-      return;
-    }
+    //const token = getToken();
 
     setUpdatingId(id);
     try {
@@ -65,8 +57,8 @@ export default function AttendancesPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ isJustified: !current }),
       });
       if (!res.ok) throw new Error(`Erreur ${res.status}`);

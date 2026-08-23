@@ -21,10 +21,11 @@ export default function AssignMainClassModal({ teacher, classes, onClose, onSucc
     if (!classId) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${teacher.id}/assign-main-class`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for session authentication
         body: JSON.stringify({ classId }),
       });
       if (res.ok) {

@@ -11,9 +11,9 @@ export function useActiveClasses() {
   useEffect(() => {
     const fetchClasses = async () => {
       try {
-        const token = localStorage.getItem('token');
+        //const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/teachers/classes/active`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         });
         if (!res.ok) throw new Error();
         const data = await res.json();

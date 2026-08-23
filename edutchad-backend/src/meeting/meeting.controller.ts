@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { MeetingService } from './meeting.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('meetings')
+@UseGuards(JwtAuthGuard) // manquait: ces routes étaient accessibles sans authentification
 export class MeetingController {
   constructor(private readonly meetingService: MeetingService) {}
 
@@ -17,16 +19,19 @@ export class MeetingController {
     return this.meetingService.findAll();
   }
 
-  // Récupérer les réunions d'un étudiant par son studentId
   @Get('student/:studentId')
   findByStudent(@Param('studentId') studentId: string) {
     return this.meetingService.findByStudentId(studentId);
   }
 
-  // Récupérer les réunions d'un utilisateur par son userId
   @Get('user/:userId')
   findByUser(@Param('userId') userId: string) {
     return this.meetingService.findByUserId(userId);
+  }
+
+  @Get('teacher/:teacherId')
+  findByTeacher(@Param('teacherId') teacherId: string) {
+    return this.meetingService.findByTeacherId(teacherId);
   }
 
   @Get(':id')
@@ -44,13 +49,11 @@ export class MeetingController {
     return this.meetingService.remove(id);
   }
 
-  // Endpoint pour ajouter un participant
   @Post(':id/participants/:userId')
   addParticipant(@Param('id') id: string, @Param('userId') userId: string) {
     return this.meetingService.addParticipant(id, userId);
   }
 
-  // Endpoint pour retirer un participant
   @Delete(':id/participants/:userId')
   removeParticipant(@Param('id') id: string, @Param('userId') userId: string) {
     return this.meetingService.removeParticipant(id, userId);

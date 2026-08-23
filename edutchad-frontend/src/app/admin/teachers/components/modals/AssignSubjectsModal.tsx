@@ -24,10 +24,11 @@ export default function AssignSubjectsModal({ teacher, subjects, onClose, onSucc
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${teacher.id}/assign-subjects`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for session authentication
         body: JSON.stringify({ subjectIds: selectedIds }),
       });
       if (res.ok) {

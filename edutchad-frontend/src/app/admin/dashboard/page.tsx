@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
+import { useApp } from '@/app/context/AppContext';
 
 // Types basés sur les réponses du backend
 interface DashboardStats {
@@ -45,6 +45,7 @@ interface DashboardData {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { settings } = useApp();
   const [data, setData] = useState<DashboardData>({
     stats: {
       students: 0,
@@ -65,61 +66,40 @@ export default function AdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userName, setUserName] = useState('Administrateur');
+  const userName = settings?.principalName || 'Administrateur';
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setUserName(user.name || 'Administrateur');
-      } catch (e) {
-        console.error('Erreur parsing user', e);
-      }
-    }
+
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/');
+  try {
+    setLoading(true);
+    setError(null);
+
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    const statsRes = await fetch(`${baseUrl}/dashboard/stats`, {
+      credentials: 'include', 
+    });
+
+    if (!statsRes.ok) {
+      if (statsRes.status === 401) {
+        router.push('/login');
         return;
       }
+      throw new Error(`Erreur API: ${statsRes.status}`);
+    }
 
-      setLoading(true);
-      setError(null);
+    const statsData = await statsRes.json();
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-      const statsRes = await fetch(`${baseUrl}/dashboard/stats`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!statsRes.ok) {
-        throw new Error(`Erreur API: ${statsRes.status}`);
-      }
-
-      const statsData = await statsRes.json();
-
-      const [activitiesRes, studentsRes, evolutionRes, distributionRes] = await Promise.all([
-        fetch(`${baseUrl}/dashboard/activities?limit=5`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${baseUrl}/dashboard/recent-students?limit=5`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${baseUrl}/dashboard/evolution`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${baseUrl}/dashboard/distribution`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ]);
+    const [activitiesRes, studentsRes, evolutionRes, distributionRes] = await Promise.all([
+      fetch(`${baseUrl}/dashboard/activities?limit=5`, { credentials: 'include' }),
+      fetch(`${baseUrl}/dashboard/recent-students?limit=5`, { credentials: 'include' }),
+      fetch(`${baseUrl}/dashboard/evolution`, { credentials: 'include' }),
+      fetch(`${baseUrl}/dashboard/distribution`, { credentials: 'include' }),
+    ]);
 
       let activitiesData: Activity[] = [];
       if (activitiesRes.ok) activitiesData = await activitiesRes.json();
@@ -161,8 +141,8 @@ export default function AdminDashboard() {
       });
 
     } catch (error) {
-      console.error("Erreur chargement dashboard", error);
-      setError("Impossible de charger les données. Veuillez réessayer.");
+    console.error("Erreur chargement dashboard", error);
+    setError("Impossible de charger les données. Veuillez réessayer.");
 
       setData({
         stats: {
@@ -206,7 +186,7 @@ export default function AdminDashboard() {
     <div>
       {/* Header de la page — version desktop riche, mobile compact */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6 md:mb-8">
-        <div>
+        {/* <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Tableau de Bord</h1>
           <p className="text-slate-500 mt-1 text-sm flex items-center gap-2">
             <Icon icon="fa-calendar-alt" className="text-slate-400" />
@@ -217,7 +197,7 @@ export default function AdminDashboard() {
               day: 'numeric'
             })}
           </p>
-        </div>
+        </div> */}
 
         <div className="flex items-center gap-3">
           <button
@@ -230,7 +210,7 @@ export default function AdminDashboard() {
           </button>
 
           {/* Info utilisateur visible uniquement sur desktop */}
-          <div className="hidden sm:flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
+          {/* <div className="hidden sm:flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
             <div className="text-right">
               <p className="text-sm font-bold text-slate-700">{userName}</p>
               <p className="text-xs text-slate-500">Proviseur / DG</p>
@@ -238,7 +218,7 @@ export default function AdminDashboard() {
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
               {userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -334,7 +314,7 @@ export default function AdminDashboard() {
               icon="fa-chart-line"
               color="orange"
               isPercentage={true}
-              link="/admin/attendance"
+              link="/admin/attendances"
             />
           </div>
 

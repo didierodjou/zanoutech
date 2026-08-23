@@ -59,7 +59,11 @@ export interface StudentDetails {
 }
 
 export function useStudentDetails() {
-  const { student } = useStudent();
+  // `studentLoading` : le StudentContext lui-même est en train de résoudre le profil
+  // (ex: appel à GET /students/profile). Sans ça, si `student` reste `null` (utilisateur
+  // non authentifié, erreur silencieuse dans le contexte...), `loading` restait bloqué
+  // à `true` pour toujours car fetchDetails n'était jamais déclenché.
+  const { student, loading: studentLoading } = useStudent();
   const [details, setDetails] = useState<StudentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,17 +71,22 @@ export function useStudentDetails() {
   const fetchDetails = useCallback(async () => {
     if (!student?.id) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     setLoading(true);
     setError(null);
 
     try {
       const res = await fetch(`${API_BASE}/students/${student.id}/details`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
-      if (!res.ok) throw new Error('Impossible de charger les données');
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? 'Profil élève introuvable.'
+            : res.status === 401
+              ? 'Session expirée, veuillez vous reconnecter.'
+              : 'Impossible de charger les données'
+        );
+      }
       const data = await res.json();
       setDetails(data);
     } catch (err: any) {
@@ -88,8 +97,18 @@ export function useStudentDetails() {
   }, [student?.id]);
 
   useEffect(() => {
-    if (student?.id) fetchDetails();
-  }, [student?.id, fetchDetails]);
+    if (studentLoading) {
+      // Le contexte élève est encore en train de charger : on attend, pas d'appel API.
+      return;
+    }
+    if (!student?.id) {
+      // Le contexte a fini de charger mais aucun élève n'est disponible.
+      setLoading(false);
+      setError("Impossible d'identifier l'élève connecté. Veuillez vous reconnecter.");
+      return;
+    }
+    fetchDetails();
+  }, [studentLoading, student?.id, fetchDetails]);
 
   return { details, loading, error, refetch: fetchDetails };
 }

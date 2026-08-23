@@ -37,7 +37,7 @@ export default function SchedulePage() {
       try {
         // Utiliser la bonne route du backend : /schedule/class/:classId
         const res = await fetch(`${API_BASE}/schedule/class/${student.class!.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include'
         });
         if (!res.ok) throw new Error('Impossible de charger l\'emploi du temps');
         const data = await res.json();

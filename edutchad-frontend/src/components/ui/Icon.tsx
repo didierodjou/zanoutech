@@ -116,7 +116,17 @@ import {
   faSmile,
   faWallet,
   faU,
-  faHeadset
+  faHeadset,
+  faCircleCheck,
+  faVideo,
+  faLink,
+  faImage,
+  faUniversity,
+  faPenToSquare,
+  faHandPointer,
+  faHome,
+  faBellSlash,
+  faEnvelopeOpenText
 } from '@fortawesome/free-solid-svg-icons';
 import { faLinkedinIn } from '@fortawesome/free-brands-svg-icons/faLinkedinIn';
 
@@ -131,6 +141,8 @@ const iconMap = {
   'fa-times-circle': faTimes,
   'fa-calculator': faCalculator,
   'fa-flask': faFlask,
+  'fa-video':faVideo,
+  'fa-link':faLink,
   'fa-tags': faTags,
   'fa-users': faUsers,
   'fa-bell':faBell,
@@ -217,12 +229,26 @@ const iconMap = {
   'fa-user-slash': faUserSlash,
   'fa-arrow-up': faArrowUp,
   'fa-arrow-down': faArrowDown,
+  'fa-bell-slash':faBellSlash,
+  'fa-tag':faTags,
+  'fa-th-large':faThLarge,
+  'fa-envelope-open-text':faEnvelopeOpenText,
   'fa-exclamation-triangle': faExclamationTriangle,
+  'fa-users-cog':faUserCog,
   'fa-clock': faClock,
   'fa-calendar': faCalendar,
   'fa-bullhorn': faBullhorn,
   'fa-comments': faComment,
   'fa-user-times': faUserSlash,
+  'fa-circle-info':faInfoCircle,
+  'fa-calendar-days':faCalendarDay,
+  'fa-send':faPaperPlane,
+  'fa-envelope-open':faEnvelope,
+  'fa-hand-pointer':faHandPointer,
+  'fa-home':faHome,
+  'fa-image':faImage,
+  'fa-university':faUniversity,
+  'fa-pen-to-square':faPenToSquare,
   
   // Chevrons
   'fa-chevron-right': faChevronRight,
@@ -256,6 +282,10 @@ const iconMap = {
   // Contact
   'fa-phone': faPhone,
   'fa-envelope': faEnvelope,
+  'fa-circle-check': faCircleCheck,
+  'fa-circle-exclamation': faExclamationCircle,
+  'fa-user-gear': faUserCog,
+  
   
   // Éducation
   'fa-book-open': faBookOpen,

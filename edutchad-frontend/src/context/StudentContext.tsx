@@ -30,42 +30,25 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const fetchStudent = async () => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-    if (!token || user.role !== 'STUDENT') {
-      router.push('/');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      let studentId = user.studentId;
+      // Le cookie httpOnly part automatiquement, pas besoin de token en JS
+      const res = await fetch(`${API_BASE}/students/profile`, {
+        credentials: 'include',
+      });
 
-      if (!studentId) {
-        // Fallback: recherche par userId
-        const res = await fetch(`${API_BASE}/students`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error('Impossible de récupérer le profil');
-        const list = await res.json();
-        const match = list.find((s: any) => s.userId === user.id);
-        if (!match) throw new Error('Profil élève introuvable');
-        studentId = match.id;
-        user.studentId = studentId;
-        localStorage.setItem('user', JSON.stringify(user));
+      if (!res.ok) {
+        router.push('/login');
+        return;
       }
 
-      const res = await fetch(`${API_BASE}/students/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Erreur lors du chargement');
       const data = await res.json();
       setStudent(data);
     } catch (err: any) {
       setError(err.message);
+      router.push('/login');
     } finally {
       setLoading(false);
     }

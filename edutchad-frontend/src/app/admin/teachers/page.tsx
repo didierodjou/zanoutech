@@ -74,10 +74,10 @@ export default function TeachersPage() {
       return;
     }
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${teacherId}/remove-main-class`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         fetchTeachers();
@@ -98,10 +98,10 @@ export default function TeachersPage() {
   ) => {
     if (!confirm(`Retirer la matière "${subjectName}" ?`)) return;
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${teacherId}/subjects/${subjectId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         fetchTeachers();
@@ -128,12 +128,12 @@ export default function TeachersPage() {
       return;
     }
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(
         `${API_URL}/teachers/${teacherId}/classes/${classId}/subjects/${subjectId}`,
         {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         },
       );
       if (res.ok) {

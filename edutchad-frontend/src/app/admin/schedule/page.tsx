@@ -128,23 +128,28 @@ export default function SchedulePage() {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
 
       const [scheduleRes, classesRes, teachersRes, subjectsRes, coursesRes] = await Promise.all([
         fetch(`${API_URL}/schedule`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/classes`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/teachers`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/subjects`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/courses`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         })
       ]);
 
@@ -197,14 +202,15 @@ export default function SchedulePage() {
     setActionLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       
       const res = await fetch(`${API_URL}/schedule`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      
         },
+        credentials: 'include',
         body: JSON.stringify(formData)
       });
 
@@ -237,12 +243,13 @@ export default function SchedulePage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce créneau ?')) return;
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/schedule/${slotId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          // 'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
       });
 
       if (res.ok) {

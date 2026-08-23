@@ -105,7 +105,6 @@ export default function ClassesPage() {
   const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-  const getToken = () => sessionStorage.getItem('token');
 
   // Helper notification
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -117,9 +116,8 @@ export default function ClassesPage() {
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -134,9 +132,8 @@ export default function ClassesPage() {
 
   const fetchTeachers = async () => {
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/teachers`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) setTeachers(await res.json());
     } catch (error) {
@@ -146,9 +143,8 @@ export default function ClassesPage() {
 
   const fetchSubjects = async () => {
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/subjects`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) setSubjects(await res.json());
     } catch (error) {
@@ -158,9 +154,8 @@ export default function ClassesPage() {
 
   const fetchSchoolYears = async () => {
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/school-years`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const years = await res.json();
@@ -228,10 +223,10 @@ export default function ClassesPage() {
     }
     setActionLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: newClass.name,
           level: newClass.level,
@@ -258,10 +253,10 @@ export default function ClassesPage() {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes/${editClass.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: editClass.name,
           level: editClass.level,
@@ -285,10 +280,9 @@ export default function ClassesPage() {
   const deleteClass = async (classId: string, className: string) => {
     if (!confirm(`Supprimer la classe ${className} ?`)) return;
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes/${classId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       const data = await res.json();
       if (res.ok) {
@@ -306,10 +300,10 @@ export default function ClassesPage() {
     if (!selectedClass || !selectedTeacherId) return;
     setActionLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes/${selectedClass.id}/assign-teacher`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ teacherId: selectedTeacherId }),
       });
       if (res.ok) {
@@ -330,9 +324,8 @@ export default function ClassesPage() {
   const viewClassDetails = async (cls: ClassData) => {
     try {
       setActionLoading(true);
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes/${cls.id}/details`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         const details = await res.json();
@@ -372,7 +365,6 @@ export default function ClassesPage() {
     }
     setActionLoading(true);
     try {
-      const token = getToken();
       let url, method;
       if (editingCourse) {
         url = `${API_URL}/classes/courses/${editingCourse.id}`;
@@ -383,7 +375,8 @@ export default function ClassesPage() {
       }
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(courseForm),
       });
       if (res.ok) {
@@ -404,10 +397,9 @@ export default function ClassesPage() {
   const deleteCourse = async (courseId: string) => {
     if (!confirm('Supprimer cette matière de la classe ?')) return;
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/classes/courses/${courseId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         showToast('success', 'Matière supprimée');
@@ -428,10 +420,10 @@ export default function ClassesPage() {
     }
     setActionLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${API_URL}/school-years`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: newYearName,
           startDate: newYearStart,
@@ -467,14 +459,13 @@ export default function ClassesPage() {
     if (!selectedStudentForBulletin) return;
     try {
       setActionLoading(true);
-      const token = getToken();
       const res = await fetch(`${API_URL}/students/${selectedStudentForBulletin.id}/bulletin/${selectedSemester}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (!res.ok) {
         const fallbackRes = await fetch(
           `${API_URL}/students/${selectedStudentForBulletin.id}/report?period=TRIMESTRE_${selectedSemester}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { credentials: 'include' }
         );
         if (!fallbackRes.ok) throw new Error('Erreur de chargement du bulletin');
         const data = await fallbackRes.json();

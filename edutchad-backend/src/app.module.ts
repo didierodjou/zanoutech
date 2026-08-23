@@ -24,9 +24,10 @@ import { MeetingModule } from './meeting/meeting.module';
 import { AttendancesModule } from './attendances/attendances.module';
 import { MessagesModule } from './messages/messages.module';
 import { SettingsModule } from './settings/settings.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, DashboardModule, TeachersModule, ClassesModule, StudentsModule, SubjectsModule, SalariesModule, AbsencesModule, GradesModule, ControlsModule, StaffModule, ScheduleModule, CoursesModule, EmailModule, BulletinsModule, AttendanceModule, UploadModule, SchoolYearsModule, MeetingModule, AttendancesModule, MessagesModule, SettingsModule],
+  imports: [PrismaModule, AuthModule, DashboardModule, TeachersModule, ClassesModule, StudentsModule, SubjectsModule, SalariesModule, AbsencesModule, GradesModule, ControlsModule, StaffModule, ScheduleModule, CoursesModule, EmailModule, BulletinsModule, AttendanceModule, UploadModule, SchoolYearsModule, MeetingModule, AttendancesModule,MeetingModule, MessagesModule, SettingsModule, NotificationsModule],
   controllers: [AppController],
   providers: [AppService],
 })

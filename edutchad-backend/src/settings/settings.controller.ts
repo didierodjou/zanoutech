@@ -4,6 +4,7 @@ import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdateSettingsDto } from './dto/create-setting.dto';
 
+
 @Controller('admin/settings')
 @UseGuards(JwtAuthGuard)
 export class SettingsController {

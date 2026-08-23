@@ -171,6 +171,68 @@ export class GradesService {
     });
   }
 
+  // ==================== DÉTAIL PAR MATIÈRE (toutes les matières de la classe) ====================
+  //
+  // Contrairement à getStudentGrades ci-dessus (qui ne renvoie que les matières où une
+  // Grade finale existe déjà), cette méthode part de la liste des matières enseignées
+  // dans la classe de l'élève (via Course), pour que toutes les matières s'affichent
+  // même sans moyenne calculée — avec le détail des évaluations (devoir, interrogations, etc.)
+  async getStudentSubjectsBreakdown(studentId: string, trimester: number) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { classId: true },
+    });
+    if (!student) throw new NotFoundException('Élève non trouvé');
+    if (!student.classId) return [];
+
+    const [courses, grades, controls] = await Promise.all([
+      this.prisma.course.findMany({
+        where: { classId: student.classId },
+        include: { subject: true },
+      }),
+      this.prisma.grade.findMany({ where: { studentId, trimester } }),
+      this.prisma.control.findMany({
+        where: { studentId, trimester },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    // Dédoublonnage : une matière peut apparaître dans plusieurs Course
+    // (ex : deux enseignants sur la même matière pour cette classe).
+    const subjectsById = new Map<string, (typeof courses)[number]['subject']>();
+    courses.forEach((course) => {
+      if (!course.subject.isDeleted) subjectsById.set(course.subject.id, course.subject);
+    });
+
+    return Array.from(subjectsById.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((subject) => {
+        const grade = grades.find((g) => g.subjectId === subject.id);
+        const subjectControls = controls
+          .filter((c) => c.subjectId === subject.id)
+          .map((c) => ({
+            id: c.id,
+            type: c.type,
+            title: c.title,
+            value: c.value,
+            maxScore: c.maxScore,
+            date: c.date,
+          }));
+
+        return {
+          subject: {
+            id: subject.id,
+            name: subject.name,
+            color: subject.color,
+            category: subject.category,
+          },
+          average: grade?.value ?? null,
+          coefficient: grade?.coefficient ?? subject.coefficient,
+          controls: subjectControls,
+        };
+      });
+  }
+
   async getGrades(classId: string, subjectId: string, trimester: number) {
     const students = await this.prisma.student.findMany({
       where: { classId },

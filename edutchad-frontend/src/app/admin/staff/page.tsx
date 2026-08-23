@@ -39,26 +39,19 @@ export default function StaffPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [filteredStaff, setFilteredStaff] = useState<Staff[]>([]);
-  
-  // États pour les modals - un seul actif à la fois
+
   const [activeModal, setActiveModal] = useState<string | null>(null);
-  
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // États pour la recherche et les filtres
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
 
-  // État pour le tableau réduisible
   const [showTable, setShowTable] = useState(true);
-  
-  // État pour la grille des cartes réduisible
   const [showCards, setShowCards] = useState(true);
 
-  // Formulaire nouveau membre du personnel
   const [newStaff, setNewStaff] = useState({
     firstName: '',
     lastName: '',
@@ -69,7 +62,6 @@ export default function StaffPage() {
     email: ''
   });
 
-  // Formulaire modification
   const [editStaff, setEditStaff] = useState({
     id: '',
     firstName: '',
@@ -83,36 +75,19 @@ export default function StaffPage() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-  // Fonctions pour ouvrir/fermer les modals
-  const openModal = (modalName: string) => {
-    setActiveModal(modalName);
-  };
+  const openModal = (modalName: string) => setActiveModal(modalName);
+  const closeModal = () => setActiveModal(null);
 
-  const closeModal = () => {
-    setActiveModal(null);
-  };
-
-  // Charger toutes les données
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token');
-
-      const staffRes = await fetch(`${API_URL}/staff`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!staffRes.ok) throw new Error('Erreur chargement personnel');
-
-      const staffData = await staffRes.json();
-
-      console.log('Personnel chargé:', staffData);
-      setStaff(staffData);
-      setFilteredStaff(staffData);
-
-    } catch (error) {
-      console.error('Erreur chargement données:', error);
+      const res = await fetch(`${API_URL}/staff`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Erreur chargement personnel');
+      const data = await res.json();
+      setStaff(data);
+      setFilteredStaff(data);
+    } catch (err) {
       setError('Impossible de charger les données');
     } finally {
       setLoading(false);
@@ -123,167 +98,104 @@ export default function StaffPage() {
     fetchData();
   }, []);
 
-  // Effet de filtrage
   useEffect(() => {
     let filtered = [...staff];
-
     if (searchTerm) {
-      filtered = filtered.filter(member => 
-        member.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(m =>
+        m.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-
     if (departmentFilter) {
-      filtered = filtered.filter(member => 
-        member.department === departmentFilter
-      );
+      filtered = filtered.filter(m => m.department === departmentFilter);
     }
-
     setFilteredStaff(filtered);
   }, [searchTerm, departmentFilter, staff]);
 
-  // Créer un membre du personnel
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
-    
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/staff`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(newStaff)
       });
-      
       if (res.ok) {
-        if (confirm('✅ Membre du personnel créé avec succès !')) {
-          closeModal();
-          setNewStaff({
-            firstName: '',
-            lastName: '',
-            jobTitle: '',
-            department: '',
-            hiringDate: '',
-            phone: '',
-            email: ''
-          });
-          fetchData();
-        }
+        closeModal();
+        setNewStaff({ firstName: '', lastName: '', jobTitle: '', department: '', hiringDate: '', phone: '', email: '' });
+        fetchData();
       } else {
         const error = await res.text();
-        alert(`❌ Erreur: ${error}`);
+        alert(`Erreur: ${error}`);
       }
-    } catch (error) {
-      alert('❌ Erreur de connexion');
+    } catch {
+      alert('Erreur de connexion');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Modifier un membre du personnel
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
-    
     try {
-      const token = localStorage.getItem('token');
-      
       const res = await fetch(`${API_URL}/staff/${editStaff.id}`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(editStaff)
       });
-
-      const responseData = await res.json();
-      
       if (res.ok) {
-        if (confirm('✅ Membre modifié avec succès !')) {
-          closeModal();
-          fetchData();
-        }
+        closeModal();
+        fetchData();
       } else {
-        alert(`❌ Erreur: ${responseData.message || 'Erreur inconnue'}`);
+        const err = await res.json();
+        alert(`Erreur: ${err.message || 'Inconnue'}`);
       }
-    } catch (error) {
-      console.error('Erreur modification:', error);
-      alert('❌ Erreur de connexion');
+    } catch {
+      alert('Erreur de connexion');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Voir les détails d'un membre
   const viewStaffDetails = async (member: Staff) => {
     try {
       setActionLoading(true);
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/staff/${member.id}/details`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
+      const res = await fetch(`${API_URL}/staff/${member.id}/details`, { credentials: 'include' });
       if (res.ok) {
         const details = await res.json();
         setSelectedStaff(details);
         openModal('details');
-      } else {
-        alert('❌ Erreur chargement détails');
       }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('❌ Erreur de connexion');
+    } catch {
+      alert('Erreur chargement détails');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Supprimer un membre
   const deleteStaff = async (staffId: string, staffName: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${staffName} ?`)) return;
-    
+    if (!confirm(`Supprimer ${staffName} ?`)) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/staff/${staffId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
+      const res = await fetch(`${API_URL}/staff/${staffId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
-        alert('✅ Membre supprimé');
         fetchData();
       } else {
-        const error = await res.text();
-        alert(`❌ Erreur: ${error}`);
+        alert('Erreur suppression');
       }
-    } catch (error) {
-      alert('❌ Erreur réseau');
+    } catch {
+      alert('Erreur réseau');
     }
   };
 
-  // Préparer l'ouverture des modals
   const openAddModal = () => {
-    setNewStaff({
-      firstName: '',
-      lastName: '',
-      jobTitle: '',
-      department: '',
-      hiringDate: '',
-      phone: '',
-      email: ''
-    });
+    setNewStaff({ firstName: '', lastName: '', jobTitle: '', department: '', hiringDate: '', phone: '', email: '' });
     openModal('add');
   };
 
@@ -301,131 +213,114 @@ export default function StaffPage() {
     openModal('edit');
   };
 
-  // Obtenir les départements uniques pour le filtre
   const uniqueDepartments = [...new Set(staff.map(m => m.department).filter(Boolean))];
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-6 bg-gray-50 min-h-screen font-sans">
+
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestion du Personnel</h1>
-          <p className="text-gray-600 mt-1">
-            <Icon icon="fa-users" className="mr-2 text-gray-600" />
-            {filteredStaff.length} membre{filteredStaff.length > 1 ? 's' : ''} du personnel
+          <h1 className="text-2xl font-semibold text-gray-800 tracking-tight">Personnel</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            <Icon icon="fa-users" className="mr-1.5 text-gray-400" />
+            {filteredStaff.length} membre{filteredStaff.length > 1 ? 's' : ''}
           </p>
         </div>
-        
-        <button 
+        <button
           onClick={openAddModal}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-md"
+          className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-md transition flex items-center gap-2 text-sm font-medium shadow-sm"
         >
           <Icon icon="fa-plus" />
-          Nouveau Membre
+          Nouveau
         </button>
       </div>
 
-      {/* Message d'erreur */}
+      {/* Erreur */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-3">
-          <Icon icon="fa-exclamation-triangle" className="text-red-700" />
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-center gap-3 text-sm">
+          <Icon icon="fa-exclamation-circle" />
           <span>{error}</span>
-          <button onClick={fetchData} className="ml-auto text-sm underline text-red-700">
-            Réessayer
-          </button>
+          <button onClick={fetchData} className="ml-auto underline text-red-700 hover:text-red-900">Réessayer</button>
         </div>
       )}
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-              <Icon icon="fa-users" className="text-xl" />
+      {/* Statistiques épurées */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-700">
+              <Icon icon="fa-users" className="text-lg" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Personnel</p>
-              <p className="text-2xl font-bold text-gray-900">{staff.length}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Total</p>
+              <p className="text-xl font-semibold text-gray-800">{staff.length}</p>
             </div>
           </div>
         </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
-              <Icon icon="fa-building" className="text-xl" />
+        <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+              <Icon icon="fa-building" className="text-lg" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Départements</p>
-              <p className="text-2xl font-bold text-gray-900">{uniqueDepartments.length}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Départements</p>
+              <p className="text-xl font-semibold text-gray-800">{uniqueDepartments.length}</p>
             </div>
           </div>
         </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">
-              <Icon icon="fa-briefcase" className="text-xl" />
+        <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+              <Icon icon="fa-briefcase" className="text-lg" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Postes</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {new Set(staff.map(m => m.jobTitle)).size}
-              </p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Postes</p>
+              <p className="text-xl font-semibold text-gray-800">{new Set(staff.map(m => m.jobTitle)).size}</p>
             </div>
           </div>
         </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
-              <Icon icon="fa-calendar" className="text-xl" />
+        <div className="bg-white p-4 rounded-md shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+              <Icon icon="fa-calendar" className="text-lg" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Ancienneté moy.</p>
-              <p className="text-2xl font-bold text-gray-900">2.5 ans</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Ancienneté moy.</p>
+              <p className="text-xl font-semibold text-gray-800">2.5 ans</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION RECHERCHE ET FILTRES */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          {/* Recherche */}
-          <div className="flex-1 w-full md:w-auto">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Rechercher un membre (nom, prénom, poste, département...)"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
-              />
-              <Icon icon="fa-search" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            </div>
+      {/* Recherche & filtres */}
+      <div className="bg-white p-5 rounded-md shadow-sm border border-gray-100 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Rechercher (nom, prénom, poste, département, email...)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            />
+            <Icon icon="fa-search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
           </div>
-
-          {/* Filtres */}
-          <div className="flex gap-3 w-full md:w-auto">
+          <div className="flex gap-3">
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 min-w-[150px]"
+              className="px-4 py-2.5 border border-gray-200 rounded-md text-sm bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition min-w-[160px]"
             >
               <option value="">Tous les départements</option>
               {uniqueDepartments.map(dept => (
-                <option key={dept} value={dept} className="text-gray-900">{dept}</option>
+                <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
-
             {(searchTerm || departmentFilter) && (
               <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setDepartmentFilter('');
-                }}
-                className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-2"
+                onClick={() => { setSearchTerm(''); setDepartmentFilter(''); }}
+                className="px-4 py-2.5 bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100 transition text-sm flex items-center gap-1.5 border border-gray-200"
               >
                 <Icon icon="fa-times" />
                 Réinitialiser
@@ -433,384 +328,271 @@ export default function StaffPage() {
             )}
           </div>
         </div>
-
-        {/* Résultats */}
-        <div className="mt-4 text-sm text-gray-600 flex items-center gap-2">
-          <Icon icon="fa-info-circle" className="text-gray-600" />
-          <span>
-            {filteredStaff.length} membre{filteredStaff.length > 1 ? 's' : ''} trouvé{filteredStaff.length > 1 ? 's' : ''}
-            {searchTerm && ` pour "${searchTerm}"`}
-            {departmentFilter && ` dans ${departmentFilter}`}
-          </span>
+        <div className="mt-3 text-xs text-gray-400 flex items-center gap-1.5">
+          <Icon icon="fa-info-circle" className="text-gray-300" />
+          <span>{filteredStaff.length} résultat{filteredStaff.length > 1 ? 's' : ''}</span>
+          {searchTerm && <span>pour "{searchTerm}"</span>}
+          {departmentFilter && <span>dans {departmentFilter}</span>}
         </div>
       </div>
 
-      {/* TABLEAU DU PERSONNEL */}
+      {/* Contenu principal */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="text-center">
-            <Icon icon="fa-spinner" className="fa-spin text-4xl text-blue-500 mb-4" />
-            <p className="text-gray-600">Chargement du personnel...</p>
+            <Icon icon="fa-spinner" className="fa-spin text-3xl text-gray-400 mb-3" />
+            <p className="text-gray-500 text-sm">Chargement...</p>
           </div>
         </div>
       ) : filteredStaff.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <Icon icon="fa-users" className="text-6xl text-gray-300 mb-4" />
-          <h3 className="text-xl font-medium text-gray-700 mb-2">
+        <div className="text-center py-16 bg-white rounded-md border border-gray-100">
+          <Icon icon="fa-users" className="text-5xl text-gray-200 mb-4" />
+          <h3 className="text-lg font-medium text-gray-600 mb-1">
             {staff.length === 0 ? 'Aucun membre' : 'Aucun résultat'}
           </h3>
-          <p className="text-gray-500 mb-6">
-            {staff.length === 0 
-              ? 'Commencez par ajouter votre premier membre du personnel'
-              : 'Aucun membre ne correspond à votre recherche'}
+          <p className="text-sm text-gray-400 mb-6">
+            {staff.length === 0
+              ? 'Ajoutez votre premier membre du personnel'
+              : 'Ajustez vos filtres pour élargir la recherche'}
           </p>
           {staff.length === 0 ? (
-            <button
-              onClick={openAddModal}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
-            >
-              <Icon icon="fa-plus" />
-              Ajouter un membre
+            <button onClick={openAddModal} className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-md text-sm transition flex items-center gap-2 mx-auto">
+              <Icon icon="fa-plus" /> Ajouter
             </button>
           ) : (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setDepartmentFilter('');
-              }}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
-            >
-              <Icon icon="fa-times" />
+            <button onClick={() => { setSearchTerm(''); setDepartmentFilter(''); }} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2.5 rounded-md text-sm transition mx-auto">
               Effacer les filtres
             </button>
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div 
-            className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition"
-            onClick={() => setShowTable(!showTable)}
-          >
-            <div className="flex items-center gap-3">
-              <Icon icon={showTable ? "fa-chevron-down" : "fa-chevron-right"} className="text-gray-500" />
-              <h2 className="text-lg font-semibold text-gray-800">Liste du personnel</h2>
-              <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                {filteredStaff.length}
-              </span>
+        <>
+          {/* Tableau */}
+          <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden mb-8">
+            <div
+              className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition"
+              onClick={() => setShowTable(!showTable)}
+            >
+              <div className="flex items-center gap-2">
+                <Icon icon={showTable ? "fa-chevron-down" : "fa-chevron-right"} className="text-gray-400 text-sm" />
+                <h2 className="text-sm font-medium text-gray-700">Liste du personnel</h2>
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full ml-1">{filteredStaff.length}</span>
+              </div>
+              <button className="text-gray-400 hover:text-gray-600">
+                <Icon icon={showTable ? "fa-compress" : "fa-expand"} className="text-sm" />
+              </button>
             </div>
-            <button className="text-gray-500 hover:text-gray-700">
-              <Icon icon={showTable ? "fa-compress" : "fa-expand"} />
-            </button>
+
+            {showTable && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Membre</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Poste</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Département</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Embauche</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredStaff.map((member) => (
+                      <tr key={member.id} className="hover:bg-gray-50 transition">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 text-xs font-medium">
+                              {member.firstName[0]}{member.lastName[0]}
+                            </div>
+                            <span className="font-medium text-gray-800">{member.firstName} {member.lastName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{member.jobTitle}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">{member.department}</span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">
+                          {new Date(member.hiringDate).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-4 py-3">
+                          {member.phone && <div className="text-xs text-gray-500">{member.phone}</div>}
+                          {member.user?.email && <div className="text-xs text-gray-400 truncate max-w-[120px]">{member.user.email}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => viewStaffDetails(member)}
+                              disabled={activeModal !== null}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-40"
+                              title="Détails"
+                            >
+                              <Icon icon="fa-eye" className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => prepareEdit(member)}
+                              disabled={activeModal !== null}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-40"
+                              title="Modifier"
+                            >
+                              <Icon icon="fa-edit" className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => deleteStaff(member.id, `${member.firstName} ${member.lastName}`)}
+                              disabled={activeModal !== null}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-40"
+                              title="Supprimer"
+                            >
+                              <Icon icon="fa-trash" className="text-sm" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          {showTable && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Membre</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Poste</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Département</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date d'embauche</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
+          {/* Cartes */}
+          <div className="bg-white rounded-md shadow-sm border border-gray-100 overflow-hidden">
+            <div
+              className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition"
+              onClick={() => setShowCards(!showCards)}
+            >
+              <div className="flex items-center gap-2">
+                <Icon icon={showCards ? "fa-chevron-down" : "fa-chevron-right"} className="text-gray-400 text-sm" />
+                <h2 className="text-sm font-medium text-gray-700">Vue cartes</h2>
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full ml-1">{filteredStaff.length}</span>
+              </div>
+              <button className="text-gray-400 hover:text-gray-600">
+                <Icon icon={showCards ? "fa-compress" : "fa-expand"} className="text-sm" />
+              </button>
+            </div>
+
+            {showCards && (
+              <div className="p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {filteredStaff.map((member) => (
-                    <tr key={member.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    <div key={member.id} className="bg-white border border-gray-100 rounded-md shadow-sm hover:shadow-md transition overflow-hidden">
+                      <div className="h-1 bg-blue-600"></div>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 text-lg font-medium">
                             {member.firstName[0]}{member.lastName[0]}
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{member.firstName} {member.lastName}</p>
-                          </div>
+                          <span className="text-xs text-gray-400">#{member.id.slice(0,5)}</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-900">{member.jobTitle}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
-                          {member.department}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">
-                          {new Date(member.hiringDate).toLocaleDateString('fr-FR')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {member.phone && (
-                          <p className="text-sm text-gray-600">{member.phone}</p>
-                        )}
-                        {member.user?.email && (
-                          <p className="text-xs text-gray-500">{member.user.email}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
+                        <div className="mt-3">
+                          <h4 className="font-semibold text-gray-800">{member.firstName} {member.lastName}</h4>
+                          <p className="text-sm text-gray-500">{member.jobTitle}</p>
+                        </div>
+                        <div className="mt-3 space-y-1.5 text-xs text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Icon icon="fa-building" className="text-gray-400 w-3.5" />
+                            <span>{member.department}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Icon icon="fa-calendar" className="text-gray-400 w-3.5" />
+                            <span>Embauché le {new Date(member.hiringDate).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          {member.phone && (
+                            <div className="flex items-center gap-2">
+                              <Icon icon="fa-phone" className="text-gray-400 w-3.5" />
+                              <span>{member.phone}</span>
+                            </div>
+                          )}
+                          {member.user?.email && (
+                            <div className="flex items-center gap-2 truncate">
+                              <Icon icon="fa-envelope" className="text-gray-400 w-3.5 shrink-0" />
+                              <span className="truncate">{member.user.email}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-4 flex gap-1.5">
                           <button
-                            onClick={() => activeModal === null && viewStaffDetails(member)}
+                            onClick={() => viewStaffDetails(member)}
                             disabled={activeModal !== null}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-50"
-                            title="Voir détails"
+                            className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 py-1.5 rounded text-xs font-medium transition disabled:opacity-40 flex items-center justify-center gap-1"
                           >
-                            <Icon icon="fa-eye" />
+                            <Icon icon="fa-eye" className="text-sm" /> Détails
                           </button>
                           <button
-                            onClick={() => activeModal === null && prepareEdit(member)}
+                            onClick={() => prepareEdit(member)}
                             disabled={activeModal !== null}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-50"
-                            title="Modifier"
+                            className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded text-xs font-medium transition disabled:opacity-40"
                           >
                             <Icon icon="fa-edit" />
                           </button>
                           <button
-                            onClick={() => activeModal === null && deleteStaff(member.id, `${member.firstName} ${member.lastName}`)}
+                            onClick={() => deleteStaff(member.id, `${member.firstName} ${member.lastName}`)}
                             disabled={activeModal !== null}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded transition disabled:opacity-50"
-                            title="Supprimer"
+                            className="px-3 py-1.5 bg-gray-50 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded text-xs font-medium transition disabled:opacity-40"
                           >
                             <Icon icon="fa-trash" />
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* SECTION DES CARTES (réduisible) */}
-      {filteredStaff.length > 0 && (
-        <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div 
-            className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition"
-            onClick={() => setShowCards(!showCards)}
-          >
-            <div className="flex items-center gap-3">
-              <Icon icon={showCards ? "fa-chevron-down" : "fa-chevron-right"} className="text-gray-500" />
-              <h2 className="text-lg font-semibold text-gray-800">Vue en cartes</h2>
-              <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                {filteredStaff.length}
-              </span>
-            </div>
-            <button className="text-gray-500 hover:text-gray-700">
-              <Icon icon={showCards ? "fa-compress" : "fa-expand"} />
-            </button>
-          </div>
-
-          {showCards && (
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredStaff.map((member) => (
-                  <div 
-                    key={member.id} 
-                    className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all overflow-hidden"
-                  >
-                    <div className="h-2 bg-gradient-to-r from-green-400 to-green-600"></div>
-                    
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="w-16 h-16 bg-green-500 rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow-md">
-                          {member.firstName[0]}{member.lastName[0]}
-                        </div>
-                        <span className="text-xs text-gray-500">#{member.id.slice(0, 4)}</span>
-                      </div>
-
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">
-                        {member.firstName} {member.lastName}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-2">{member.jobTitle}</p>
-
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Icon icon="fa-building" className="text-gray-400 w-4" />
-                          <span className="text-gray-700">{member.department}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Icon icon="fa-calendar" className="text-gray-400 w-4" />
-                          <span className="text-gray-700">
-                            Embauché le {new Date(member.hiringDate).toLocaleDateString('fr-FR')}
-                          </span>
-                        </div>
-                        {member.phone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Icon icon="fa-phone" className="text-gray-400 w-4" />
-                            <span className="text-gray-700">{member.phone}</span>
-                          </div>
-                        )}
-                        {member.user?.email && (
-                          <div className="flex items-center gap-2 text-sm truncate">
-                            <Icon icon="fa-envelope" className="text-gray-400 w-4" />
-                            <span className="text-gray-700 truncate">{member.user.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => activeModal === null && viewStaffDetails(member)}
-                          disabled={activeModal !== null}
-                          className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition disabled:opacity-50"
-                        >
-                          <Icon icon="fa-eye" className="mr-1" />
-                          Détails
-                        </button>
-                        <button
-                          onClick={() => activeModal === null && prepareEdit(member)}
-                          disabled={activeModal !== null}
-                          className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition disabled:opacity-50"
-                        >
-                          <Icon icon="fa-edit" />
-                        </button>
-                        <button
-                          onClick={() => activeModal === null && deleteStaff(member.id, `${member.firstName} ${member.lastName}`)}
-                          disabled={activeModal !== null}
-                          className="w-10 h-10 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
-                        >
-                          <Icon icon="fa-trash" />
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* MODAL AJOUT MEMBRE */}
+      {/* MODAL AJOUT */}
       {activeModal === 'add' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">
-                <Icon icon="fa-user-plus" className="text-green-500 mr-2" />
-                Nouveau Membre du Personnel
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Icon icon="fa-user-plus" className="text-blue-600" />
+                Nouveau membre
               </h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                 <Icon icon="fa-times" className="text-xl" />
               </button>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={newStaff.firstName}
-                    onChange={e => setNewStaff({...newStaff, firstName: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" value={newStaff.firstName} onChange={e => setNewStaff({...newStaff, firstName: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={newStaff.lastName}
-                    onChange={e => setNewStaff({...newStaff, lastName: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none" value={newStaff.lastName} onChange={e => setNewStaff({...newStaff, lastName: e.target.value})} />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Poste *</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="Ex: Directeur, Secrétaire, Comptable..."
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={newStaff.jobTitle}
-                    onChange={e => setNewStaff({...newStaff, jobTitle: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={newStaff.jobTitle} onChange={e => setNewStaff({...newStaff, jobTitle: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Département *</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="Ex: Administration, Comptabilité, Scolarité..."
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={newStaff.department}
-                    onChange={e => setNewStaff({...newStaff, department: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={newStaff.department} onChange={e => setNewStaff({...newStaff, department: e.target.value})} />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date d'embauche *</label>
-                <input 
-                  type="date"
-                  required
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                  value={newStaff.hiringDate}
-                  onChange={e => setNewStaff({...newStaff, hiringDate: e.target.value})}
-                />
+                <input type="date" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={newStaff.hiringDate} onChange={e => setNewStaff({...newStaff, hiringDate: e.target.value})} />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input 
-                  type="email"
-                  required
-                  placeholder="membre@etablissement.td"
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                  value={newStaff.email}
-                  onChange={e => setNewStaff({...newStaff, email: e.target.value})}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  L'email servira d'identifiant de connexion (mot de passe par défaut: staff123)
-                </p>
+                <input type="email" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} />
+                <p className="text-xs text-gray-400 mt-1">Mot de passe généré automatiquement</p>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone (optionnel)</label>
-                <input 
-                  type="tel"
-                  placeholder="+235 XX XX XX XX"
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                  value={newStaff.phone}
-                  onChange={e => setNewStaff({...newStaff, phone: e.target.value})}
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                <input type="tel" className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={newStaff.phone} onChange={e => setNewStaff({...newStaff, phone: e.target.value})} />
               </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  type="button" 
-                  onClick={closeModal} 
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={actionLoading}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {actionLoading ? (
-                    <>
-                      <Icon icon="fa-spinner" className="fa-spin" />
-                      Création...
-                    </>
-                  ) : (
-                    <>
-                      <Icon icon="fa-save" />
-                      Créer
-                    </>
-                  )}
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition">Annuler</button>
+                <button type="submit" disabled={actionLoading} className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm rounded-md transition disabled:opacity-50 flex items-center gap-2">
+                  {actionLoading ? <><Icon icon="fa-spinner" className="fa-spin" /> Création...</> : <><Icon icon="fa-save" /> Créer</>}
                 </button>
               </div>
             </form>
@@ -818,123 +600,57 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* MODAL MODIFICATION MEMBRE */}
+      {/* MODAL MODIFICATION */}
       {activeModal === 'edit' && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">
-                <Icon icon="fa-edit" className="text-blue-500 mr-2" />
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Icon icon="fa-edit" className="text-blue-600" />
                 Modifier le membre
               </h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                 <Icon icon="fa-times" className="text-xl" />
               </button>
             </div>
-
             <form onSubmit={handleEdit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={editStaff.firstName}
-                    onChange={e => setEditStaff({...editStaff, firstName: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.firstName} onChange={e => setEditStaff({...editStaff, firstName: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={editStaff.lastName}
-                    onChange={e => setEditStaff({...editStaff, lastName: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.lastName} onChange={e => setEditStaff({...editStaff, lastName: e.target.value})} />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Poste *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={editStaff.jobTitle}
-                    onChange={e => setEditStaff({...editStaff, jobTitle: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.jobTitle} onChange={e => setEditStaff({...editStaff, jobTitle: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Département *</label>
-                  <input 
-                    type="text"
-                    required
-                    className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                    value={editStaff.department}
-                    onChange={e => setEditStaff({...editStaff, department: e.target.value})}
-                  />
+                  <input type="text" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.department} onChange={e => setEditStaff({...editStaff, department: e.target.value})} />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date d'embauche *</label>
-                <input 
-                  type="date"
-                  required
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                  value={editStaff.hiringDate}
-                  onChange={e => setEditStaff({...editStaff, hiringDate: e.target.value})}
-                />
+                <input type="date" required className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.hiringDate} onChange={e => setEditStaff({...editStaff, hiringDate: e.target.value})} />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input 
-                  type="email"
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900 bg-gray-100"
-                  value={editStaff.email}
-                  disabled
-                />
-                <p className="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
+                <input type="email" className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500" value={editStaff.email} disabled />
+                <p className="text-xs text-gray-400 mt-1">Email non modifiable</p>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                <input 
-                  type="tel"
-                  className="w-full border border-gray-300 p-3 rounded-lg text-gray-900"
-                  value={editStaff.phone}
-                  onChange={e => setEditStaff({...editStaff, phone: e.target.value})}
-                />
+                <input type="tel" className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm" value={editStaff.phone} onChange={e => setEditStaff({...editStaff, phone: e.target.value})} />
               </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  type="button" 
-                  onClick={closeModal} 
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={actionLoading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {actionLoading ? (
-                    <>
-                      <Icon icon="fa-spinner" className="fa-spin" />
-                      Modification...
-                    </>
-                  ) : (
-                    <>
-                      <Icon icon="fa-save" />
-                      Enregistrer
-                    </>
-                  )}
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition">Annuler</button>
+                <button type="submit" disabled={actionLoading} className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm rounded-md transition disabled:opacity-50 flex items-center gap-2">
+                  {actionLoading ? <><Icon icon="fa-spinner" className="fa-spin" /> Enregistrement...</> : <><Icon icon="fa-save" /> Enregistrer</>}
                 </button>
               </div>
             </form>
@@ -942,19 +658,17 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* MODAL DÉTAILS MEMBRE */}
+      {/* MODAL DÉTAILS */}
       {activeModal === 'details' && selectedStaff && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-2 border-b">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-lg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 text-lg font-medium">
                   {selectedStaff.firstName[0]}{selectedStaff.lastName[0]}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {selectedStaff.firstName} {selectedStaff.lastName}
-                  </h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{selectedStaff.firstName} {selectedStaff.lastName}</h3>
                   <p className="text-sm text-gray-500">{selectedStaff.jobTitle}</p>
                 </div>
               </div>
@@ -963,78 +677,37 @@ export default function StaffPage() {
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Informations générales */}
+            <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 flex items-center gap-2 mb-1">
-                    <Icon icon="fa-building" />
-                    Département
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900">{selectedStaff.department}</p>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wider">Département</p>
+                  <p className="font-medium text-gray-800">{selectedStaff.department}</p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 flex items-center gap-2 mb-1">
-                    <Icon icon="fa-calendar" />
-                    Date d'embauche
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {new Date(selectedStaff.hiringDate).toLocaleDateString('fr-FR')}
-                  </p>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wider">Embauche</p>
+                  <p className="font-medium text-gray-800">{new Date(selectedStaff.hiringDate).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
 
-              {/* Contact */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 flex items-center gap-2 mb-2">
-                  <Icon icon="fa-address-card" />
-                  Coordonnées
-                </p>
-                <div className="space-y-2">
-                  {selectedStaff.phone && (
-                    <div className="flex items-center gap-2">
-                      <Icon icon="fa-phone" className="text-gray-500 w-4" />
-                      <span className="text-gray-900">{selectedStaff.phone}</span>
-                    </div>
-                  )}
-                  {selectedStaff.user?.email && (
-                    <div className="flex items-center gap-2">
-                      <Icon icon="fa-envelope" className="text-gray-500 w-4" />
-                      <span className="text-gray-900">{selectedStaff.user.email}</span>
-                    </div>
-                  )}
-                </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Coordonnées</p>
+                {selectedStaff.phone && <p className="text-gray-700"><Icon icon="fa-phone" className="mr-2 text-gray-400" />{selectedStaff.phone}</p>}
+                {selectedStaff.user?.email && <p className="text-gray-700"><Icon icon="fa-envelope" className="mr-2 text-gray-400" />{selectedStaff.user.email}</p>}
               </div>
 
-              {/* Ancienneté */}
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-blue-700 flex items-center gap-2 mb-2">
-                  <Icon icon="fa-clock" />
-                  Ancienneté
-                </p>
-                <p className="text-2xl font-bold text-blue-700">
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Ancienneté</p>
+                <p className="text-lg font-semibold text-gray-800">
                   {Math.floor((new Date().getTime() - new Date(selectedStaff.hiringDate).getTime()) / (1000 * 60 * 60 * 24 * 365))} ans
                 </p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-              <button 
-                onClick={() => {
-                  closeModal();
-                  prepareEdit(selectedStaff);
-                }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Icon icon="fa-edit" className="mr-2" />
-                Modifier
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+              <button onClick={() => { closeModal(); prepareEdit(selectedStaff); }} className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm rounded-md transition flex items-center gap-2">
+                <Icon icon="fa-edit" /> Modifier
               </button>
-              <button 
-                onClick={closeModal}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              >
-                Fermer
-              </button>
+              <button onClick={closeModal} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded-md transition">Fermer</button>
             </div>
           </div>
         </div>

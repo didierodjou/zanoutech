@@ -38,6 +38,19 @@ export class GradesController {
     );
   }
 
+  // Détail par matière (devoir, interrogations, contrôle...) pour TOUTES les matières
+  // de la classe de l'élève, même celles sans moyenne calculée pour ce trimestre.
+  @Get('student/:studentId/breakdown')
+  async getStudentBreakdown(
+    @Param('studentId') studentId: string,
+    @Query('trimester') trimester?: string,
+  ) {
+    return this.gradesService.getStudentSubjectsBreakdown(
+      studentId,
+      trimester ? parseInt(trimester) : 1,
+    );
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.gradesService.findOne(id);

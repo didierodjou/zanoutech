@@ -3,6 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { UpdateMeetingDto } from './dto/update-meeting.dto';
 
+const PARTICIPANT_SELECT = {
+  id: true,
+  email: true,
+  role: true,
+  studentProfile: { select: { firstName: true, lastName: true } },
+  teacherProfile: { select: { firstName: true, lastName: true } },
+  staffProfile: { select: { firstName: true, lastName: true } },
+} as const;
+
 @Injectable()
 export class MeetingService {
   constructor(private prisma: PrismaService) {}
@@ -52,18 +61,7 @@ export class MeetingService {
         include: {
           organizer: { select: { firstName: true, lastName: true } },
           participants: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  role: true,
-                  studentProfile: { select: { firstName: true, lastName: true } },
-                  teacherProfile: { select: { firstName: true, lastName: true } },
-                  staffProfile: { select: { firstName: true, lastName: true } },
-                },
-              },
-            },
+            include: { user: { select: PARTICIPANT_SELECT } },
           },
         },
       });
@@ -75,17 +73,7 @@ export class MeetingService {
       include: {
         organizer: { select: { firstName: true, lastName: true } },
         participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                role: true,
-                studentProfile: { select: { firstName: true, lastName: true } },
-                teacherProfile: { select: { firstName: true, lastName: true } },
-              },
-            },
-          },
+          include: { user: { select: PARTICIPANT_SELECT } },
         },
       },
       orderBy: { date: 'asc' },
@@ -125,23 +113,37 @@ export class MeetingService {
     }));
   }
 
+  // Réunions organisées par le prof + celles où il est simple participant
+  async findByTeacherId(teacherId: string) {
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: { userId: true },
+    });
+    if (!teacher) throw new NotFoundException(`Enseignant avec ID ${teacherId} non trouvé`);
+
+    const meetings = await this.prisma.meeting.findMany({
+      where: {
+        OR: [{ organizerId: teacherId }, { participants: { some: { userId: teacher.userId } } }],
+      },
+      include: {
+        organizer: { select: { firstName: true, lastName: true } },
+        participants: {
+          include: { user: { select: PARTICIPANT_SELECT } },
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    return meetings.map((m) => ({ ...m, isOrganizer: m.organizerId === teacherId }));
+  }
+
   async findOne(id: string) {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id },
       include: {
         organizer: { select: { firstName: true, lastName: true } },
         participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                role: true,
-                studentProfile: { select: { firstName: true, lastName: true } },
-                teacherProfile: { select: { firstName: true, lastName: true } },
-              },
-            },
-          },
+          include: { user: { select: PARTICIPANT_SELECT } },
         },
       },
     });
@@ -157,7 +159,7 @@ export class MeetingService {
 
     return this.prisma.$transaction(async (tx) => {
       // Mise à jour des champs de base
-      const updatedMeeting = await tx.meeting.update({
+      await tx.meeting.update({
         where: { id },
         data: {
           title: updateData.title,

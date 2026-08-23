@@ -1,0 +1,22 @@
+// src/main.ts — extrait à fusionner avec ton fichier existant
+
+import { NestFactory } from '@nestjs/core';
+import * as cookieParser from 'cookie-parser';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Indispensable : permet de lire req.cookies dans le guard
+  app.use(cookieParser());
+
+  // CORS : autoriser le domaine du front + autoriser l'envoi de cookies.
+  // ⚠️ origin ne peut PAS être '*' quand credentials: true.
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  await app.listen(3001);
+}
+bootstrap();

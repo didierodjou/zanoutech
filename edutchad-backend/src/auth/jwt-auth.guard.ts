@@ -5,21 +5,26 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { AuthService } from './auth.service'; // ✅ On réutilise AuthService — pas de nouvelle dépendance
+import { AuthService } from './auth.service';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
-/**
- * Guard JWT — délègue la vérification à AuthService.verifyToken()
- * que vous utilisez déjà partout dans le projet.
- *
- * Usage : @UseGuards(JwtAuthGuard) sur un contrôleur ou une route.
- * Le payload { email, sub, role } est ensuite dispo via req.user.
- */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Route marquée @Public() → on laisse passer sans vérifier le token
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractToken(request);
 
@@ -27,14 +32,12 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token JWT manquant');
     }
 
-    // AuthService.verifyToken() lance déjà UnauthorizedException si invalide/expiré
     const payload = await this.authService.verifyToken(token);
     (request as any).user = payload;
     return true;
   }
 
   private extractToken(request: Request): string | null {
-    const [type, token] = request.headers?.authorization?.split(' ') ?? [];
-    return type === 'Bearer' && token ? token : null;
+    return request.cookies?.['access_token'] ?? null;
   }
 }

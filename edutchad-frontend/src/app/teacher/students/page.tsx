@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/ui/Icon';
 
@@ -49,8 +48,26 @@ const PUNISHMENT_REASONS = [
   "Dégradation de matériel"
 ];
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// ── Hook personnalisé : résout le teacherId courant via le cookie httpOnly ──
+// Appelé UNE SEULE FOIS, au niveau racine du composant.
+function useTeacherId() {
+  const [teacherId, setTeacherId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/teachers/profile`, { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data?.id) setTeacherId(data.id); })
+      .catch(() => {});
+  }, []);
+
+  return teacherId;
+}
+
 export default function TeacherStudentsPage() {
-  const router = useRouter();
+  const teacherId = useTeacherId(); // ✅ résolu via le cookie, pas via localStorage
+
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [mainClassId, setMainClassId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,8 +92,6 @@ export default function TeacherStudentsPage() {
   // Nom du professeur connecté (initialisé après chargement)
   const [teacherName, setTeacherName] = useState<string>('');
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
   const safeParseJSON = async (res: Response) => {
     const text = await res.text();
     if (!text) return null;
@@ -88,11 +103,10 @@ export default function TeacherStudentsPage() {
   };
 
   // Récupérer les infos du professeur à partir de son ID
-  const fetchTeacherName = async (teacherId: string) => {
+  const fetchTeacherName = async (id: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/teachers/${teacherId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch(`${API_URL}/teachers/${id}`, {
+        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -117,9 +131,8 @@ export default function TeacherStudentsPage() {
 
   const fetchStudentPunishments = async (studentId: string): Promise<Punishment[]> => {
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/students/${studentId}/punishments`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include',
       });
       if (res.ok) {
         return await res.json();
@@ -130,32 +143,17 @@ export default function TeacherStudentsPage() {
     return [];
   };
 
-  const refreshData = async () => {
+  const refreshData = async (id: string) => {
     setLoading(true);
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (!token || !storedUser) {
-      router.push('/');
-      return;
-    }
-    const userData = JSON.parse(storedUser);
-    const teacherId = userData.teacherId;
-    if (!teacherId) {
-      setError("Identifiant enseignant introuvable.");
-      setLoading(false);
-      return;
-    }
+    setError('');
 
     // Récupérer le nom du professeur une fois (si ce n'est pas déjà fait)
     if (!teacherName) {
-      await fetchTeacherName(teacherId);
+      await fetchTeacherName(id);
     }
 
-    const headers = { Authorization: `Bearer ${token}` };
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
     try {
-      const coursesRes = await fetch(`${API_BASE}/teachers/${teacherId}/courses`, { headers });
+      const coursesRes = await fetch(`${API_URL}/teachers/${id}/courses`, { credentials: 'include' });
       const courses = coursesRes.ok ? await coursesRes.json() : [];
       const coursesList = Array.isArray(courses) ? courses : [];
 
@@ -172,16 +170,18 @@ export default function TeacherStudentsPage() {
 
       const classesArray = Array.from(classesMap.values());
 
-      const mainClassRes = await fetch(`${API_BASE}/teachers/${teacherId}/main-class`, { headers });
+      const mainClassRes = await fetch(`${API_URL}/teachers/${id}/main-class`, { credentials: 'include' });
       const mainClassData = await safeParseJSON(mainClassRes);
+      let resolvedMainClassId: string | null = null;
       if (mainClassData?.id) {
+        resolvedMainClassId = mainClassData.id;
         setMainClassId(mainClassData.id);
       }
 
       const updatedClasses = await Promise.all(
         classesArray.map(async (cls) => {
           try {
-            const studentsRes = await fetch(`${API_BASE}/teachers/class/${cls.id}/students`, { headers });
+            const studentsRes = await fetch(`${API_URL}/teachers/class/${cls.id}/students`, { credentials: 'include' });
             const studentsData = await safeParseJSON(studentsRes);
             let studentsList = Array.isArray(studentsData)
               ? studentsData
@@ -211,11 +211,10 @@ export default function TeacherStudentsPage() {
       );
 
       setClasses(updatedClasses);
-      if (mainClassId) {
-        setExpandedClassIds(new Set([mainClassId]));
+      if (resolvedMainClassId) {
+        setExpandedClassIds(new Set([resolvedMainClassId]));
       }
     } catch (err) {
-      // console.error(err);
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des données');
     } finally {
       setLoading(false);
@@ -223,8 +222,9 @@ export default function TeacherStudentsPage() {
   };
 
   useEffect(() => {
-    refreshData();
-  }, [router]);
+    if (!teacherId) return; // attend que useTeacherId ait résolu le profil
+    refreshData(teacherId);
+  }, [teacherId]);
 
   const toggleClass = (classId: string) => {
     setExpandedClassIds(prev => {
@@ -264,13 +264,12 @@ export default function TeacherStudentsPage() {
 
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/students/${selectedStudent.id}/punishments`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           hours: punishmentData.hours,
           reason: punishmentData.reason,
@@ -283,7 +282,7 @@ export default function TeacherStudentsPage() {
         setSuccessMessage(`✅ Punition ajoutée pour ${selectedStudent.firstName} ${selectedStudent.lastName}`);
         setTimeout(() => setSuccessMessage(null), 3000);
         closePunishmentModal();
-        await refreshData();
+        if (teacherId) await refreshData(teacherId);
       } else {
         const errorText = await res.text();
         setError(`❌ Erreur: ${errorText}`);
@@ -302,16 +301,15 @@ export default function TeacherStudentsPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette punition ?')) return;
 
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/students/${studentId}/punishments/${punishmentId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (res.ok) {
         setSuccessMessage('✅ Punition supprimée');
         setTimeout(() => setSuccessMessage(null), 3000);
-        await refreshData();
+        if (teacherId) await refreshData(teacherId);
         // Fermer la modale des détails si elle est ouverte
         if (punishmentDetails) {
           const updatedStudent = classes

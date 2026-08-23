@@ -13,9 +13,9 @@ export function useTeachers() {
   const fetchTeachers = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (!res.ok) throw new Error('Erreur chargement professeurs');
       const data = await res.json();
@@ -32,10 +32,10 @@ export function useTeachers() {
   const softDeleteTeacher = async (id: string, name: string): Promise<boolean> => {
     if (!confirm(`Supprimer ${name} ? (peut être restauré ultérieurement)`)) return false;
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${id}/soft`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         await fetchTeachers();
@@ -53,10 +53,10 @@ export function useTeachers() {
   const restoreTeacher = async (id: string): Promise<boolean> => {
     if (!confirm('Restaurer ce professeur ?')) return false;
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/teachers/${id}/restore`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) {
         await fetchTeachers();

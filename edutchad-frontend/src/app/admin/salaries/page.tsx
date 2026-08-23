@@ -91,17 +91,20 @@ export default function SalariesPage() {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
 
       const [salariesRes, teachersRes, staffRes] = await Promise.all([
         fetch(`${API_URL}/salaries`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/teachers`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/staff`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          //headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         })
       ]);
 
@@ -170,7 +173,7 @@ export default function SalariesPage() {
     setActionLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       
       const payload = {
         ...formData,
@@ -180,14 +183,14 @@ export default function SalariesPage() {
       const res = await fetch(`${API_URL}/salaries`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
-        if (confirm('💰 Paiement enregistré avec succès !')) {
+        if (confirm('Paiement enregistré avec succès !')) {
           closeModal();
           setFormData({
             beneficiaryType: 'teacher',
@@ -216,12 +219,13 @@ export default function SalariesPage() {
     
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/salaries/${salaryId}/pay`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          // 'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
       });
 
       if (res.ok) {
@@ -242,12 +246,13 @@ export default function SalariesPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) return;
     
     try {
-      const token = localStorage.getItem('token');
+      //const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/salaries/${salaryId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          // 'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
       });
 
       if (res.ok) {
