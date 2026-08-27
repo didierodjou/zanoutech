@@ -245,7 +245,7 @@ export default function HomePage() {
             >
               <button 
                 onClick={() => router.push('/login')}
-                className="bg-gradient-to-r from-green-400 to-green-500 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:from-yellow-500 hover:to-yellow-600 transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 flex items-center gap-2"
+                className="bg-gradient-to-r from-green-400 to-green-500 text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:from-dodgerblue-500 hover:to-yellow-600 transition-all shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 flex items-center gap-2"
               >
                 <Icon icon="fa-rocket" />
                 Commencer maintenant
