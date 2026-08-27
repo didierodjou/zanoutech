@@ -1,7 +1,9 @@
 // src/students/students.service.ts
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { Role, Period, PaymentStatus } from '@prisma/client';
 
 const PERIOD_MAP: Record<number, Period> = {
@@ -18,7 +20,18 @@ const PERIOD_TO_TRIMESTER: Record<string, number> = {
 
 @Injectable()
 export class StudentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
+
+  // Mot de passe temporaire lisible (sans caractères ambigus 0/O/1/l), envoyé par email
+  // au parent puis jamais réutilisé/reloggé en clair.
+  private generateTemporaryPassword(length = 10): string {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = crypto.randomBytes(length);
+    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+  }
 
   // ==================== PROFIL DE L'ÉLÈVE CONNECTÉ ====================
   async getProfile(userId: string) {
@@ -46,20 +59,29 @@ export class StudentsService {
   // ==================== CRUD DE BASE (avec soft delete) ====================
 
   async create(data: any) {
-    const hashedPassword = await bcrypt.hash('student123', 10);
-
-    let email = data.email;
-    if (!email || email.trim() === '') {
-      const registrationNo = data.registrationNo || (await this.generateRegistrationNo());
-      email = `${registrationNo}@edutchad.local`;
+    // L'email de l'ÉLÈVE sert désormais d'identifiant de connexion au cabinet
+    // personnel de l'élève (et non plus l'email du parent) : il est donc obligatoire.
+    // L'email du parent reste stocké comme simple information de contact.
+    const studentEmail = (data.email || '').trim().toLowerCase();
+    if (!studentEmail) {
+      throw new BadRequestException(
+        "L'email de l'élève est obligatoire : il sert d'identifiant de connexion au cabinet personnel de l'élève.",
+      );
     }
 
+    const parentEmail = (data.parentEmail || '').trim().toLowerCase() || null;
+
     const existingUser = await this.prisma.user.findFirst({
-      where: { email, isDeleted: false },
+      where: { email: studentEmail, isDeleted: false },
     });
 
     if (existingUser) {
-      throw new ConflictException('Un utilisateur avec cet email existe déjà');
+      // Limite actuelle du schéma : un User = un Student (relation 1-1), l'email est
+      // unique. Chaque élève doit donc avoir sa propre adresse email de connexion.
+      throw new ConflictException(
+        `L'email ${studentEmail} est déjà utilisé par un autre compte élève. ` +
+          `Merci d'utiliser une adresse email distincte pour cet élève.`,
+      );
     }
 
     let registrationNo = data.registrationNo;
@@ -74,16 +96,20 @@ export class StudentsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+
+    const student = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email,
+          email: studentEmail,
           passwordHash: hashedPassword,
           role: Role.STUDENT,
+          mustChangePassword: true,
         },
       });
 
-      const student = await tx.student.create({
+      return tx.student.create({
         data: {
           userId: user.id,
           firstName: data.firstName,
@@ -94,16 +120,33 @@ export class StudentsService {
           photo: data.photo || null,
           parentName: data.parentName,
           parentPhone: data.parentPhone,
-          parentEmail: data.parentEmail || null,
+          parentEmail,
           classId: data.classId || null,
           tuitionFee: data.tuitionFee ?? null,
           tuitionPaid: 0,
           tuitionStatus: PaymentStatus.UNPAID,
         },
       });
-
-      return student;
     });
+
+    // L'envoi d'email ne doit jamais faire échouer la création de l'élève :
+    // une panne SMTP ne doit pas bloquer une inscription. On informe juste
+    // le frontend via `emailSent` pour qu'il puisse avertir l'admin si besoin.
+    let emailSent = false;
+    try {
+      await this.emailService.sendStudentAccountEmail(
+        studentEmail,
+        data.firstName,
+        data.lastName,
+        data.parentName,
+        temporaryPassword,
+      );
+      emailSent = true;
+    } catch (err) {
+      console.error(`❌ Échec de l'envoi de l'email de bienvenue à ${studentEmail} :`, err);
+    }
+
+    return { ...student, studentEmail, emailSent };
   }
 
   async findAll(includeDeleted = false) {
@@ -561,7 +604,7 @@ async getBulletin(studentId: string, trimester?: number) {
       }
 
       if (devoirMoy !== null && compoMoy !== null) {
-        moyenneMatiere = Number(((devoirMoy + 2 * compoMoy) / 3).toFixed(2));
+        moyenneMatiere = Number(((devoirMoy + compoMoy) / 2).toFixed(2));
       } else if (devoirMoy !== null) {
         moyenneMatiere = devoirMoy;
       } else if (compoMoy !== null) {

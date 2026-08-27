@@ -63,6 +63,9 @@ model User {
 
   isActive Boolean @default(true)
 
+  
+  mustChangePassword Boolean @default(false)
+
   // Soft delete
   isDeleted Boolean   @default(false)
   deletedAt DateTime?

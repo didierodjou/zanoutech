@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/ui/Icon';
 import { Student } from '../types';
 
@@ -40,28 +41,68 @@ function ActionMenu({ student, displayName, onViewDetails, onEdit, onDelete, onA
   onBulletin: (s: Student) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const MENU_WIDTH = 192; // w-48
+  const MENU_HEIGHT_ESTIMATE = 340; // hauteur approx du menu complet
+
+  const computeCoords = () => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < MENU_HEIGHT_ESTIMATE && rect.top > spaceBelow;
+    setCoords({
+      top: openUp ? rect.top : rect.bottom,
+      left: Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8),
+      openUp,
+    });
+  };
+
+  const toggleOpen = () => {
+    if (!open) computeCoords();
+    setOpen(o => !o);
+  };
+
   useEffect(() => {
+    if (!open) return;
+
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
     };
+    const handleReposition = () => computeCoords();
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('scroll', handleReposition, true);
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleReposition, true);
+      window.removeEventListener('resize', handleReposition);
+    };
+  }, [open]);
 
-  return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none"
-        title="Actions"
-      >
-        <Icon icon="fa-ellipsis-v" />
-      </button>
-
-      {open && (
-        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20 py-1 divide-y divide-gray-100 focus:outline-none">
+  const menu = open && coords && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: coords.openUp ? undefined : coords.top + 4,
+            bottom: coords.openUp ? window.innerHeight - coords.top + 4 : undefined,
+            left: Math.max(8, coords.left),
+            width: MENU_WIDTH,
+          }}
+          className="rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-[9999] py-1 divide-y divide-gray-100 focus:outline-none"
+        >
           <div className="py-1">
             <button onClick={() => { onViewDetails(student); setOpen(false); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2">
               <Icon icon="fa-eye" className="text-gray-400 w-4" /> Voir profil
@@ -92,8 +133,22 @@ function ActionMenu({ student, displayName, onViewDetails, onEdit, onDelete, onA
               <Icon icon="fa-trash" className="text-red-500 w-4" /> Supprimer
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        ref={buttonRef}
+        onClick={toggleOpen}
+        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none"
+        title="Actions"
+      >
+        <Icon icon="fa-ellipsis-v" />
+      </button>
+      {menu}
     </div>
   );
 }

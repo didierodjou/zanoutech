@@ -7,10 +7,11 @@ import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RolesGuard } from './roles.guard';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
-    PrismaModule,
+    PrismaModule,EmailModule,
     JwtModule.register({
       secret: (() => {
         if (!process.env.JWT_SECRET) {

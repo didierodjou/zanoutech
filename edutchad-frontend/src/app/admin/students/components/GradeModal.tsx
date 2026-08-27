@@ -29,6 +29,17 @@ export default function GradeModal({ student, subjects, onClose, onSuccess }: Pr
   };
   const removeInterro = (idx: number) => setInterrogations(interrogations.filter((_, i) => i !== idx));
 
+  // Parse une saisie de note en la plafonnant entre 0 et 20 (retourne null si le
+  // champ doit s'afficher vide, ex: l'utilisateur vient d'effacer le champ).
+  const parseNoteInput = (raw: string): number => {
+    if (raw === '') return 0;
+    let val = parseFloat(raw);
+    if (isNaN(val)) return 0;
+    if (val > 20) val = 20;
+    if (val < 0) val = 0;
+    return val;
+  };
+
   const handleSave = async () => {
     if (!subjectId || !trimester) return alert('Choisissez matière et trimestre');
     setLoading(true);
@@ -83,8 +94,8 @@ export default function GradeModal({ student, subjects, onClose, onSuccess }: Pr
             <div><label>Trimestre</label><select className="w-full border p-2 rounded" value={trimester} onChange={e => setTrimester(parseInt(e.target.value))}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></div>
           </div>
           <div className="border rounded-lg p-4 bg-gray-50">
-            <div className="mb-4"><label>Note du Devoir (coef 2)</label><input type="number" min="0" max="20" step="0.5" className="w-full border p-2 rounded" value={devoir} onChange={e => setDevoir(parseFloat(e.target.value) || 0)} /></div>
-            <div><div className="flex justify-between"><label>Interrogations (coef 1)</label><button type="button" onClick={addInterro} className="text-blue-600 text-sm">+ Ajouter</button></div>{interrogations.map((n, idx) => (<div key={idx} className="flex gap-2 mt-2"><input type="number" step="0.5" className="flex-1 border p-2 rounded" value={n} onChange={e => updateInterro(idx, parseFloat(e.target.value) || 0)} /><button onClick={() => removeInterro(idx)} className="text-red-600"><Icon icon="fa-trash" /></button></div>))}</div>
+            <div className="mb-4"><label>Note du Devoir</label><input type="number" min={0} max={20} step="0.5" className="w-full border p-2 rounded" value={devoir === 0 ? '' : devoir} onChange={e => setDevoir(parseNoteInput(e.target.value))} /></div>
+            <div><div className="flex justify-between"><label>Interrogations</label><button type="button" onClick={addInterro} className="text-blue-600 text-sm">+ Ajouter</button></div>{interrogations.map((n, idx) => (<div key={idx} className="flex gap-2 mt-2"><input type="number" min={0} max={20} step="0.5" className="flex-1 border p-2 rounded" value={n === 0 ? '' : n} onChange={e => updateInterro(idx, parseNoteInput(e.target.value))} /><button onClick={() => removeInterro(idx)} className="text-red-600"><Icon icon="fa-trash" /></button></div>))}</div>
             {subjectId && (<div className="mt-4 p-3 bg-blue-50 rounded"><p className="text-sm">Moyenne pondérée</p><p className="text-2xl font-bold">{calculateWeightedAverage(devoir, interrogations)}/20</p></div>)}
           </div>
           <div className="flex justify-end gap-3"><button onClick={onClose} className="px-4 py-2 text-gray-700">Annuler</button><button onClick={handleSave} disabled={loading} className="bg-green-600 text-white px-6 py-2 rounded flex items-center gap-2">{loading ? <Icon icon="fa-spinner" className="fa-spin" /> : 'Enregistrer'}</button></div>

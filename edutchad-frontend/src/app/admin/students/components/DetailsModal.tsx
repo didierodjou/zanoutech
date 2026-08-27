@@ -518,21 +518,7 @@ export default function DetailsModal({
           )}
         </div>
 
-        {/* Actions */}
-        {/* <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-          <button
-            onClick={onEdit}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center gap-2"
-          >
-            <Icon icon="fa-edit" /> Modifier
-          </button>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition"
-          >
-            Fermer
-          </button>
-        </div> */}
+
       </div>
     </div>
   );

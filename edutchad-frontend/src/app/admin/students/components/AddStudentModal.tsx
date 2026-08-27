@@ -29,6 +29,8 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Écran de confirmation affiché après création réussie, avant fermeture définitive.
+  const [createdInfo, setCreatedInfo] = useState<{ studentEmail: string; emailSent: boolean } | null>(null);
 
   // Filtrer les classes actives : uniquement celles de l'année scolaire en cours
   const activeClasses = classes.filter(
@@ -60,15 +62,20 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
         dateOfBirth: form.dateOfBirth,
         parentName: form.parentName,
         parentPhone: form.parentPhone,
-        parentEmail: form.parentEmail || null,
+        parentEmail: form.parentEmail,
+        // L'email de l'élève sert désormais d'identifiant de connexion au cabinet
+        // personnel : les identifiants (mot de passe temporaire) lui sont envoyés
+        // directement à cette adresse, et non plus à celle du parent.
+        email: form.email,
         classId: form.classId || null,
-        email: form.email || undefined,
         photo: form.photo || null,
       };
       if (form.registrationNo.trim()) payload.registrationNo = form.registrationNo;
-      await studentApi.create(payload);
-      onSuccess();
-      onClose();
+
+      const created: any = await studentApi.create(payload);
+      // On ne ferme pas immédiatement : on confirme d'abord que les identifiants
+      // ont bien été envoyés (ou pas, en cas de panne SMTP) avant de rendre la main.
+      setCreatedInfo({ studentEmail: form.email, emailSent: created?.emailSent ?? false });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -76,9 +83,50 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
     }
   };
 
+  const handleFinish = () => {
+    onSuccess();
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl w-full max-w-2xl p-4 sm:p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        {createdInfo ? (
+          // ==================== ÉCRAN DE CONFIRMATION ====================
+          <div className="text-center py-4">
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                createdInfo.emailSent ? 'bg-emerald-100' : 'bg-amber-100'
+              }`}
+            >
+              <Icon
+                icon={createdInfo.emailSent ? 'fa-check-circle' : 'fa-exclamation-triangle'}
+                className={`text-2xl ${createdInfo.emailSent ? 'text-emerald-600' : 'text-amber-600'}`}
+              />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Élève créé avec succès</h3>
+            {createdInfo.emailSent ? (
+              <p className="text-sm text-gray-600 max-w-sm mx-auto">
+                Les identifiants de connexion au cabinet personnel de l'élève ont été envoyés à{' '}
+                <span className="font-semibold text-gray-800">{createdInfo.studentEmail}</span>.
+              </p>
+            ) : (
+              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 max-w-sm mx-auto">
+                L'élève a été créé, mais l'envoi automatique de l'email à{' '}
+                <span className="font-semibold">{createdInfo.studentEmail}</span> a échoué. Merci de
+                communiquer les identifiants de connexion manuellement à l'élève (via le module de
+                réinitialisation de mot de passe par exemple).
+              </div>
+            )}
+            <button
+              onClick={handleFinish}
+              className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Terminer
+            </button>
+          </div>
+        ) : (
+        <>
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg sm:text-xl font-bold text-gray-900">
             <Icon icon="fa-user-plus" className="text-blue-500 mr-2" /> Nouvel Élève
@@ -162,14 +210,22 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email élève (optionnel)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email de l'élève *</label>
             <input
               type="email"
-              placeholder="exemple@email.com"
-              className="w-full border p-2.5 rounded-lg"
+              required
+              placeholder="eleve@email.com"
+              className="w-full border border-gray-300 p-2.5 rounded-lg"
               value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
             />
+            <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
+              <Icon icon="fa-info-circle" className="mt-0.5 flex-shrink-0" />
+              <span>
+                Cet email servira d'identifiant de connexion au cabinet personnel de l'élève.
+                Un mot de passe temporaire y sera envoyé automatiquement.
+              </span>
+            </p>
           </div>
 
           <div>
@@ -231,7 +287,7 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
               </div>
             </div>
             <div className="mt-3">
-              <label>Email parent</label>
+              <label>Email parent (contact, optionnel)</label>
               <input
                 type="email"
                 placeholder="parent@email.com"
@@ -239,6 +295,13 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
                 value={form.parentEmail}
                 onChange={e => setForm({ ...form, parentEmail: e.target.value })}
               />
+              <p className="text-xs text-gray-500 mt-1 flex items-start gap-1.5">
+                <Icon icon="fa-info-circle" className="mt-0.5 flex-shrink-0" />
+                <span>
+                  Simple information de contact — n'est plus utilisé pour la connexion.
+                  Les identifiants sont envoyés à l'email de l'élève ci-dessus.
+                </span>
+              </p>
             </div>
           </div>
 
@@ -269,6 +332,8 @@ export default function AddStudentModal({ classes, onClose, onSuccess }: Props) 
             </button>
           </div>
         </form>
+        </>
+        )}
       </div>
     </div>
   );

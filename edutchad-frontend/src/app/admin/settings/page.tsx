@@ -15,6 +15,21 @@ interface SchoolSettings {
   logo?: string | null;
 }
 
+interface AdminUser {
+  id: string;
+  email: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
+
+function generateTemporaryPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+  const bytes = new Uint32Array(14);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SchoolSettings | null>(null);
@@ -23,6 +38,20 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Changement de mot de passe
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
+
+  // Gestion des administrateurs
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [adminsLoading, setAdminsLoading] = useState(true);
+  const [newAdminForm, setNewAdminForm] = useState({ email: '', temporaryPassword: '' });
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [adminMessage, setAdminMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [createdAdminInfo, setCreatedAdminInfo] = useState<{ email: string; temporaryPassword: string } | null>(null);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -56,7 +85,101 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    fetchAdmins();
   }, []);
+
+  const fetchAdmins = async () => {
+    try {
+      setAdminsLoading(true);
+      const res = await fetch(apiUrl('/admin/settings/admins'), { credentials: 'include' });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const data = await res.json();
+      setAdmins(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAdminsLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage(null);
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage({ text: 'Le nouveau mot de passe doit contenir au moins 8 caractères', type: 'error' });
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ text: 'Les mots de passe ne correspondent pas', type: 'error' });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const res = await fetch(apiUrl('/admin/settings/password'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur ${res.status}`);
+      }
+
+      setPasswordMessage({ text: 'Mot de passe mis à jour avec succès', type: 'success' });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setPasswordMessage(null), 4000);
+    } catch (err: any) {
+      setPasswordMessage({ text: err.message || 'Erreur lors du changement de mot de passe', type: 'error' });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminMessage(null);
+    setCreatedAdminInfo(null);
+
+    if (!newAdminForm.email.trim()) {
+      setAdminMessage({ text: "L'email est requis", type: 'error' });
+      return;
+    }
+    if (newAdminForm.temporaryPassword.length < 8) {
+      setAdminMessage({ text: 'Le mot de passe temporaire doit contenir au moins 8 caractères', type: 'error' });
+      return;
+    }
+
+    setCreatingAdmin(true);
+    try {
+      const res = await fetch(apiUrl('/admin/settings/admins'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newAdminForm),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur ${res.status}`);
+      }
+
+      setAdminMessage({ text: 'Administrateur créé avec succès', type: 'success' });
+      setCreatedAdminInfo({ email: newAdminForm.email, temporaryPassword: newAdminForm.temporaryPassword });
+      setNewAdminForm({ email: '', temporaryPassword: '' });
+      fetchAdmins();
+    } catch (err: any) {
+      setAdminMessage({ text: err.message || "Erreur lors de la création de l'administrateur", type: 'error' });
+    } finally {
+      setCreatingAdmin(false);
+    }
+  };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,6 +424,261 @@ export default function SettingsPage() {
           </div>
         </div>
       </form>
+
+      {/* ==================== SÉCURITÉ — CHANGER MON MOT DE PASSE ==================== */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-5">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
+            <Icon icon="fa-lock" className="text-rose-500" />
+            Sécurité — Mon mot de passe
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Utilisé pour se connecter à votre compte administrateur</p>
+
+          {passwordMessage && (
+            <div
+              className={`mb-4 p-3 rounded-md border flex items-center gap-2 text-sm ${
+                passwordMessage.type === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+            >
+              <Icon
+                icon={passwordMessage.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}
+                className="flex-shrink-0"
+              />
+              <span className="flex-1">{passwordMessage.text}</span>
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe actuel *</label>
+              <div className="relative">
+                <input
+                  type={showPassword.current ? 'text' : 'password'}
+                  required
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((p) => ({ ...p, current: !p.current }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <Icon icon={showPassword.current ? 'fa-eye-slash' : 'fa-eye'} />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe *</label>
+              <div className="relative">
+                <input
+                  type={showPassword.new ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((p) => ({ ...p, new: !p.new }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <Icon icon={showPassword.new ? 'fa-eye-slash' : 'fa-eye'} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">8 caractères minimum</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmer le nouveau mot de passe *</label>
+              <div className="relative">
+                <input
+                  type={showPassword.confirm ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((p) => ({ ...p, confirm: !p.confirm }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <Icon icon={showPassword.confirm ? 'fa-eye-slash' : 'fa-eye'} />
+                </button>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                type="submit"
+                disabled={changingPassword}
+                className="px-6 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm rounded-md transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
+              >
+                {changingPassword ? (
+                  <>
+                    <Icon icon="fa-spinner" className="fa-spin" />
+                    Mise à jour...
+                  </>
+                ) : (
+                  <>
+                    <Icon icon="fa-key" />
+                    Changer le mot de passe
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* ==================== GESTION DES ADMINISTRATEURS ==================== */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-5 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
+            <Icon icon="fa-users-cog" className="text-indigo-500" />
+            Administrateurs
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Comptes ayant accès à l'administration de l'établissement</p>
+
+          {adminsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-3">
+              <Icon icon="fa-spinner" className="fa-spin" />
+              Chargement des administrateurs...
+            </div>
+          ) : admins.length === 0 ? (
+            <p className="text-sm text-gray-400 py-3">Aucun administrateur trouvé</p>
+          ) : (
+            <div className="space-y-2">
+              {admins.map((admin) => (
+                <div
+                  key={admin.id}
+                  className="flex items-center justify-between gap-3 p-3 rounded-md bg-gray-50 border border-gray-100"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <Icon icon="fa-user-shield" className="text-indigo-600 text-xs" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{admin.email}</p>
+                      <p className="text-xs text-gray-400">
+                        Ajouté le {new Date(admin.createdAt).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {admin.mustChangePassword && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Doit changer son mot de passe
+                      </span>
+                    )}
+                    {!admin.isActive && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                        Inactif
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Ajouter un administrateur</h3>
+
+          {adminMessage && (
+            <div
+              className={`mb-4 p-3 rounded-md border flex items-center gap-2 text-sm ${
+                adminMessage.type === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+            >
+              <Icon
+                icon={adminMessage.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}
+                className="flex-shrink-0"
+              />
+              <span className="flex-1">{adminMessage.text}</span>
+            </div>
+          )}
+
+          {createdAdminInfo && (
+            <div className="mb-4 p-4 rounded-md border border-indigo-200 bg-indigo-50 text-sm">
+              <p className="text-indigo-800 font-medium mb-2 flex items-center gap-2">
+                <Icon icon="fa-info-circle" />
+                Communiquez ces identifiants au nouvel administrateur — ils ne seront plus affichés ensuite.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-xs">
+                <div className="bg-white rounded px-2 py-1.5 border border-indigo-100">{createdAdminInfo.email}</div>
+                <div className="bg-white rounded px-2 py-1.5 border border-indigo-100">
+                  {createdAdminInfo.temporaryPassword}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateAdmin} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+              <input
+                type="email"
+                required
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                value={newAdminForm.email}
+                onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
+                placeholder="nouvel.admin@ecole.td"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe temporaire *</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  minLength={8}
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  value={newAdminForm.temporaryPassword}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, temporaryPassword: e.target.value })}
+                  placeholder="8 caractères min."
+                />
+                <button
+                  type="button"
+                  onClick={() => setNewAdminForm((f) => ({ ...f, temporaryPassword: generateTemporaryPassword() }))}
+                  className="px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50 transition flex-shrink-0"
+                  title="Générer un mot de passe temporaire"
+                >
+                  <Icon icon="fa-dice" />
+                </button>
+              </div>
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                type="submit"
+                disabled={creatingAdmin}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-md transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
+              >
+                {creatingAdmin ? (
+                  <>
+                    <Icon icon="fa-spinner" className="fa-spin" />
+                    Création...
+                  </>
+                ) : (
+                  <>
+                    <Icon icon="fa-user-plus" />
+                    Ajouter l'administrateur
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

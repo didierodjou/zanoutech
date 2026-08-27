@@ -91,9 +91,9 @@ export default function LoginPage() {
             />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">EduTchad</h1>
-          <p className="text-slate-200 text-sm mt-1.5 font-medium">
+          {/* <p className="text-slate-200 text-sm mt-1.5 font-medium">
             Plateforme de Gestion Scolaire
-          </p>
+          </p> */}
         </div>
 
         {/* Formulaire avec labels flottants sur la ligne du haut */}

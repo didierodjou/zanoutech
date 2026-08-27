@@ -19,6 +19,10 @@ class LoginDto {
   password!: string;
 }
 
+class ForgotPasswordDto {
+  email!: string;
+}
+
 // Centralise les options des cookies pour éviter les incohérences.
 // secure: true exige HTTPS. En local (http://localhost) tu peux mettre
 // secure: false temporairement, mais JAMAIS en production.
@@ -97,6 +101,13 @@ export class AuthController {
     return { success: true };
   }
 
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('me')

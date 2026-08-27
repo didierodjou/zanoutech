@@ -7,9 +7,11 @@ import Icon from '@/components/ui/Icon';
 import { StudentProvider, useStudent } from '@/context/StudentContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
+
 // Hook personnalisé pour détecter le mode mobile
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
+  
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < breakpoint);
@@ -20,6 +22,8 @@ function useIsMobile(breakpoint = 768) {
 
   return isMobile;
 }
+
+
 
 const NAV_ITEMS = [
   { href: '/student/dashboard', icon: 'fa-th-large', label: 'Cabinet personnel' },
@@ -207,7 +211,7 @@ function Sidebar({
             {sidebarOpen && (
               <div>
                 <p className="text-white font-bold text-sm leading-none tracking-wide">EduTchad</p>
-                <p className="text-indigo-400 text-[10px] mt-1">Espace Élève</p>
+                {/* <p className="text-indigo-400 text-[10px] mt-1">Espace Élève</p> */}
               </div>
             )}
           </div>

@@ -13,7 +13,7 @@ export class EmailService {
     const smtpUser = process.env.SMTP_USER || 'admin@edutchad.td';
     const smtpPassword = process.env.SMTP_PASSWORD || '';
 
-    console.log('📧 Configuration SMTP:', { host: smtpHost, port: smtpPort, user: smtpUser });
+    console.log('Configuration SMTP:', { host: smtpHost, port: smtpPort, user: smtpUser });
 
     // Configuration du transporteur SMTP
     this.transporter = nodemailer.createTransport({
@@ -71,12 +71,12 @@ export class EmailService {
     };
 
     try {
-      console.log(`📧 Envoi d'email à ${to}...`);
+      console.log(`Envoi d'email à ${to}...`);
       const info = await this.transporter.sendMail(mailOptions);
-      console.log('✅ Email envoyé:', info.messageId);
+      console.log('Email envoyé:', info.messageId);
       return info;
     } catch (error) {
-      console.error('❌ Erreur envoi email:', error);
+      console.error('Erreur envoi email:', error);
       throw error;
     }
   }
@@ -120,7 +120,72 @@ export class EmailService {
     };
 
     try {
-      console.log(`📧 Envoi d'email de réinitialisation à ${to}...`);
+      console.log(`Envoi d'email de réinitialisation à ${to}...`);
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log('Email envoyé:', info.messageId);
+      return info;
+    } catch (error) {
+      console.error('❌ Erreur envoi email:', error);
+      throw error;
+    }
+  }
+
+  async sendStudentAccountEmail(
+    studentEmail: string,
+    studentFirstName: string,
+    studentLastName: string,
+    parentName: string,
+    password: string,
+  ) {
+    const subject = `EduTchad - Accès à ton cabinet personnel`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb;">EduTchad</h1>
+          <p style="color: #6b7280; font-size: 16px;">Plateforme de Gestion Scolaire</p>
+        </div>
+
+        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h2 style="color: #1f2937; margin-top: 0;">Bonjour ${studentFirstName} ${studentLastName},</h2>
+          <p style="color: #4b5563;">
+            Ton compte a été créé avec succès sur la plateforme EduTchad. Tu peux désormais accéder
+            à ton <strong>cabinet personnel</strong> (notes, absences, bulletins, scolarité...) avec
+            les identifiants ci-dessous. Ton parent/tuteur (${parentName}) a également été informé
+            de la création de ce compte.
+          </p>
+        </div>
+
+        <div style="background-color: #e0f2fe; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h3 style="color: #0369a1; margin-top: 0;">Identifiants de connexion</h3>
+          <p style="color: #1e293b;"><strong>Email :</strong> ${studentEmail}</p>
+          <p style="color: #1e293b;"><strong>Mot de passe temporaire :</strong> <span style="background-color: #fef9c3; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${password}</span></p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <p style="color: #4b5563;">Pour te connecter :</p>
+          <ol style="color: #4b5563;">
+            <li>Rendez-vous sur la page de connexion « Espace Élève »</li>
+            <li>Entre l'email et le mot de passe ci-dessus</li>
+            <li>Un changement de mot de passe te sera demandé dès la première connexion</li>
+          </ol>
+        </div>
+
+        <div style="border-top: 1px solid #e0e0e0; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 14px;">
+          <p>Ce message est automatique, merci de ne pas y répondre.</p>
+          <p>&copy; ${new Date().getFullYear()} EduTchad - Tous droits réservés</p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `"EduTchad" <${process.env.SMTP_USER || 'admin@edutchad.td'}>`,
+      to: studentEmail,
+      subject,
+      html,
+    };
+
+    try {
+      console.log(`📧 Envoi de l'email d'accès élève à ${studentEmail}...`);
       const info = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email envoyé:', info.messageId);
       return info;

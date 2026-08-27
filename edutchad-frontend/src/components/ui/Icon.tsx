@@ -126,7 +126,9 @@ import {
   faHandPointer,
   faHome,
   faBellSlash,
-  faEnvelopeOpenText
+  faEnvelopeOpenText,
+  faDice,
+  faUserShield
 } from '@fortawesome/free-solid-svg-icons';
 import { faLinkedinIn } from '@fortawesome/free-brands-svg-icons/faLinkedinIn';
 
@@ -235,6 +237,8 @@ const iconMap = {
   'fa-envelope-open-text':faEnvelopeOpenText,
   'fa-exclamation-triangle': faExclamationTriangle,
   'fa-users-cog':faUserCog,
+  'fa-dice':faDice,
+  'fa-user-shield':faUserShield,
   'fa-clock': faClock,
   'fa-calendar': faCalendar,
   'fa-bullhorn': faBullhorn,

@@ -627,14 +627,13 @@ export default function GradesPage() {
             <div className="border rounded-lg p-5 bg-gray-50">
               <h4 className="font-semibold text-gray-700 mb-1">Contrôles - Trimestre {trimester}</h4>
               <p className="text-xs text-gray-500 mb-5">
-                Formule : <span className="font-mono">(Devoir×2 + Moy.Interrogations×1) / 3</span>
+                Formule : <span className="font-mono">(Devoir + Moy.Interrogations) / 2</span>
               </p>
 
               {/* Devoir Surveillé */}
               <div className="p-4 bg-white rounded-lg mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Devoir Surveillé (/20)
-                  <span className="ml-2 text-xs text-indigo-600 font-semibold">(Coef 2)</span>
                 </label>
                 <input
                   type="number"
@@ -671,7 +670,7 @@ export default function GradesPage() {
                   <label className="block text-sm font-medium text-gray-700">
                     Interrogations
                     <span className="ml-2 text-xs text-indigo-600 font-semibold">
-                      (Coef 1 chacune, max 20)
+                      (/20)
                     </span>
                   </label>
                   <button

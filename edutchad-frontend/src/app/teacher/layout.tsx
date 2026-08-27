@@ -13,6 +13,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
 
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -46,6 +47,20 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
 
     checkAuth();
   }, [router]);
+
+  // Récupère le logo de l'établissement depuis les paramètres de l'école
+  // (modèle SchoolSetting.logo). ⚠️ Adapte l'URL ci-dessous si ta route
+  // backend pour les réglages d'établissement porte un autre nom.
+  useEffect(() => {
+    fetch(`${baseUrl}/school-settings`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.logo) setSchoolLogo(data.logo);
+      })
+      .catch(() => {
+        // Silencieux : en cas d'échec on garde simplement l'icône par défaut
+      });
+  }, [baseUrl]);
 
   const fetchTeacher = async (email: string) => {
     try {
@@ -147,8 +162,12 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         {/* Header Sidebar */}
         <div className="p-5 border-b border-[#1e2d45] flex items-center justify-between w-full">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0 shadow-sm">
-              <Icon icon="fa-graduation-cap" className="text-sm" />
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0 shadow-sm overflow-hidden">
+              {schoolLogo ? (
+                <img src={schoolLogo} alt="Logo établissement" className="w-full h-full object-cover" />
+              ) : (
+                <Icon icon="fa-graduation-cap" className="text-sm" />
+              )}
             </div>
             {isSidebarOpen && (
               <div className="truncate">
@@ -254,8 +273,12 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 sticky top-0 z-40 shadow-xs">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="md:hidden w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
-                <Icon icon="fa-graduation-cap" />
+              <div className="md:hidden w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold overflow-hidden">
+                {schoolLogo ? (
+                  <img src={schoolLogo} alt="Logo établissement" className="w-full h-full object-cover" />
+                ) : (
+                  <Icon icon="fa-graduation-cap" />
+                )}
               </div>
               <h2 className="text-base sm:text-xl font-bold text-slate-800 truncate">
                 {navItems.find((item) => item.href === pathname)?.label || 'Personnel'}

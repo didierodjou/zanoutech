@@ -1,15 +1,19 @@
 // src/auth/auth.service.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   // 1. Valider l'utilisateur (login)
@@ -119,6 +123,75 @@ export class AuthService {
     await this.prisma.session.deleteMany({
       where: { refreshToken: refreshTokenHash },
     });
+  }
+
+  // 6. Mot de passe oublié : génère un mot de passe temporaire et l'envoie par
+  //    email. Réponse volontairement identique que le compte existe ou non
+  //    (même logique anti-énumération que validateUser).
+  async requestPasswordReset(rawEmail: string): Promise<{ message: string }> {
+    const GENERIC_MESSAGE =
+      "Si un compte existe pour cet email, un nouveau mot de passe a été envoyé.";
+
+    const email = (rawEmail || '').trim().toLowerCase();
+    if (!email) return { message: GENERIC_MESSAGE };
+
+    const user = await this.prisma.user.findFirst({
+      where: { email, isDeleted: false, isActive: true },
+      include: {
+        studentProfile: true,
+        teacherProfile: true,
+        staffProfile: true,
+      },
+    });
+
+    if (!user) {
+      this.logger.log(`Demande de réinitialisation pour un email inconnu : ${email}`);
+      return { message: GENERIC_MESSAGE };
+    }
+
+    // Le nom vient du profil associé, quel que soit le rôle (élève, prof,
+    // staff). Pas de profil dédié pour un ADMIN : libellé générique dans ce cas.
+    const profile =
+      (user as any).studentProfile ||
+      (user as any).teacherProfile ||
+      (user as any).staffProfile ||
+      null;
+    const firstName = profile?.firstName || 'Utilisateur';
+    const lastName = profile?.lastName || '';
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash, mustChangePassword: true },
+      }),
+      // On révoque toutes les sessions actives : un reset de mot de passe doit
+      // déconnecter l'utilisateur de partout où il était déjà connecté.
+      this.prisma.session.deleteMany({ where: { userId: user.id } }),
+    ]);
+
+    try {
+      await this.emailService.sendPasswordResetEmail(user.email, firstName, lastName, temporaryPassword);
+    } catch (err) {
+      // On ne renvoie jamais l'échec d'envoi au client (message toujours
+      // générique), mais on le trace côté serveur pour pouvoir intervenir.
+      this.logger.error(`Échec de l'envoi de l'email de réinitialisation à ${email}`, err as Error);
+    }
+
+    return { message: GENERIC_MESSAGE };
+  }
+
+  private generateTemporaryPassword(): string {
+    // 10 caractères alphanumériques lisibles (sans caractères ambigus 0/O, 1/l/I)
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const bytes = crypto.randomBytes(10);
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+      password += alphabet[bytes[i] % alphabet.length];
+    }
+    return password;
   }
 
   // On ne stocke jamais le refresh token en clair en base, seulement son hash.
